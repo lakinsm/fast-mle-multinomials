@@ -98,7 +98,7 @@ def blm_hessian_precompute(U, v_d, v_d1, theta):
                 gradient[d] += (U[d][z] * ((theta[d] + z)**-1))
                 h_diag[d] -= (U[d][z] * ((theta[d] + z)**-2))
             gradient[d] -= (v_d[z] * ((sum_theta + z)**-1))
-            h_diag[d] += (v_d[z] * ((sum_theta + z)**-2))
+            # h_diag[d] += (v_d[z] * ((sum_theta + z)**-2))
         lprob -= v_d[z] * np.log(sum_theta + z)
 
         # beta parameter
@@ -107,10 +107,11 @@ def blm_hessian_precompute(U, v_d, v_d1, theta):
             gradient[-2] += (U[D1-1][z] * ((theta[-2] + z)**-1))
             h_diag[-2] -= (U[D1-1][z] * ((theta[-2] + z)**-2))
         gradient[-2] -= (v_d1[z] * ((theta[-2] + theta[-1] + z)**-1))
-        h_diag[-2] += (v_d1[z] * ((theta[-2] + theta[-1] + z)**-2))
+        # h_diag[-2] += (v_d1[z] * ((theta[-2] + theta[-1] + z)**-2))
 
         # alpha parameter
-        h_diag[-1] += (v_d1[z] * ((theta[-2] + theta[-1] + z)**-2)) - (v_d[z] * ((theta[-1] + z)**-2))
+        # h_diag[-1] += (v_d1[z] * ((theta[-2] + theta[-1] + z)**-2)) - (v_d[z] * ((theta[-1] + z)**-2))
+        h_diag[-1] -= (v_d[z] * ((theta[-1] + z) ** -2))
         gradient[-1] += (v_d[z] * ((theta[-1] + z)**-1)) - (v_d1[z] * ((theta[-2] + theta[-1] + z) ** -1))
         lprob += (v_d[z] * np.log(theta[-1] + z)) - (v_d1[z] * np.log(theta[-2] + theta[-1] + z))
 
@@ -126,12 +127,12 @@ def blm_hessian_precompute(U, v_d, v_d1, theta):
             gradient[-2] += (U[D1 - 1][z] * ((theta[-2] + z) ** -1))
             h_diag[-2] -= (U[D1 - 1][z] * ((theta[-2] + z) ** -2))
         gradient[-2] -= (v_d1[z] * ((theta[-2] + theta[-1] + z) ** -1))
-        h_diag[-2] += (v_d1[z] * ((theta[-2] + theta[-1] + z) ** -2))
+        # h_diag[-2] += (v_d1[z] * ((theta[-2] + theta[-1] + z) ** -2))
 
         # alpha parameter
         gradient[-1] -= v_d1[z] * ((theta[-2] + theta[-1] + z) ** -1)
         lprob -= v_d1[z] * np.log(theta[-2] + theta[-1] + z)
-        h_diag[-1] += (v_d1[z] * ((theta[-2] + theta[-1] + z) ** -2))
+        # h_diag[-1] += (v_d1[z] * ((theta[-2] + theta[-1] + z) ** -2))
 
         # constants
         constants[1] += v_d1[z] * ((theta[-2] + theta[-1] + z)**-2)

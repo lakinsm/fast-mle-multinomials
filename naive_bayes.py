@@ -189,8 +189,8 @@ if __name__ == '__main__':
     datasets = train.keys()
     for d in datasets:
         test_accuracy('BLM', train[d], test[d], d, True, sys.argv[3])
-        # for distribution in ('pooledDM', 'DM', 'BLM', 'GDM'):
-        #     test_accuracy(distribution, train[d], test[d], d, True, sys.argv[3])
+        for distribution in ('pooledDM', 'DM', 'BLM', 'GDM'):
+            test_accuracy(distribution, train[d], test[d], d, True, sys.argv[3])
 
     # test_accuracy('pooledDM', train['r8'], test['r8'], 'r8', False, None)
     # test_accuracy('DM', train['r8'], test['r8'], 'r8', False, None)

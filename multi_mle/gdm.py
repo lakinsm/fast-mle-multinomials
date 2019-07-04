@@ -97,16 +97,16 @@ def gdm_hessian_precompute(U, vd, theta):
                 lprob -= vd[d][z] * np.log(theta[alpha_idx] + theta[alpha_idx + 1] + z)  # alpha_d + beta_d
                 gradient[alpha_idx] -= vd[d][z] * ((theta[alpha_idx] + theta[alpha_idx + 1] + z)**-1)  # alpha_d
                 gradient[alpha_idx + 1] -= vd[d][z] * ((theta[alpha_idx] + theta[alpha_idx + 1] + z)**-1)  # beta_d
-                h_diag[alpha_idx] += vd[d][z] * ((theta[alpha_idx] + theta[alpha_idx + 1] + z)**-2)  # alpha_d
-                h_diag[alpha_idx + 1] += vd[d][z] * ((theta[alpha_idx] + theta[alpha_idx + 1] + z)**-2)  # beta_d
+                # h_diag[alpha_idx] += vd[d][z] * ((theta[alpha_idx] + theta[alpha_idx + 1] + z)**-2)  # alpha_d
+                # h_diag[alpha_idx + 1] += vd[d][z] * ((theta[alpha_idx] + theta[alpha_idx + 1] + z)**-2)  # beta_d
                 constants[d] += vd[d][z] * ((theta[alpha_idx] + theta[alpha_idx + 1] + z) ** -2)
         alpha_idx = D
         if z < len(vd[D]):
             lprob -= vd[D][z] * np.log(theta[alpha_idx] + theta[alpha_idx + 1] + z)  # alpha_d + beta_d
             gradient[alpha_idx] -= vd[D][z] * ((theta[alpha_idx] + theta[alpha_idx + 1] + z) ** -1)  # alpha_d
             gradient[alpha_idx + 1] -= vd[D][z] * ((theta[alpha_idx] + theta[alpha_idx + 1] + z) ** -1)  # beta_d
-            h_diag[alpha_idx] += vd[D][z] * ((theta[alpha_idx] + theta[alpha_idx + 1] + z) ** -2)  # alpha_d
-            h_diag[alpha_idx + 1] += vd[D][z] * ((theta[alpha_idx] + theta[alpha_idx + 1] + z) ** -2)  # beta_d
+            # h_diag[alpha_idx] += vd[D][z] * ((theta[alpha_idx] + theta[alpha_idx + 1] + z) ** -2)  # alpha_d
+            # h_diag[alpha_idx + 1] += vd[D][z] * ((theta[alpha_idx] + theta[alpha_idx + 1] + z) ** -2)  # beta_d
             constants[D - 1] += vd[D][z] * ((theta[alpha_idx] + theta[alpha_idx + 1] + z) ** -2)
     return gradient, h_diag, constants, lprob
 

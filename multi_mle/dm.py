@@ -78,7 +78,7 @@ def dm_hessian_precompute(U, v, theta):
                 gradient[d] += (U[d][z] * ((theta[d] + z)**-1))
                 h_diag[d] -= (U[d][z] * ((theta[d] + z)**-2))
             gradient[d] -= (v[z] * ((sum_theta + z)**-1))
-            h_diag[d] += (v[z] * ((sum_theta + z)**-2))
+            # h_diag[d] += (v[z] * ((sum_theta + z)**-2))
         constant += v[z] * ((sum_theta + z)**-2)
         lprob -= v[z] * np.log(sum_theta + z)
     return gradient, h_diag, constant, lprob
