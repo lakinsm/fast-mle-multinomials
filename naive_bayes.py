@@ -130,8 +130,8 @@ def test_accuracy(distribution, train, test, dataset_name, mean_normalize, resul
         for i, c in enumerate(class_labels):
             U, vd = gdm.gdm_precalc(X[c][0])
             params = gdm.gdm_init_params(X[c][0])
-            mle = gdm.gdm_renormalize(gdm.gdm_newton_raphson(U, vd, params, max_steps, gradient_sq_threshold,
-                                                             learn_rate_threshold, delta_lprob_threshold))
+            mle = gdm.gdm_newton_raphson(U, vd, params, max_steps, gradient_sq_threshold,
+                                         learn_rate_threshold, delta_lprob_threshold)
             if mean_normalize:
                 class_simplex = gdm.gdm_renormalize(mle)
             else:
@@ -187,15 +187,8 @@ if __name__ == '__main__':
     train = load_data(sys.argv[1])
     test = load_data(sys.argv[2])
     datasets = train.keys()
+
     for d in datasets:
-        test_accuracy('BLM', train[d], test[d], d, True, sys.argv[3])
         for distribution in ('pooledDM', 'DM', 'BLM', 'GDM'):
             test_accuracy(distribution, train[d], test[d], d, True, sys.argv[3])
 
-    # test_accuracy('pooledDM', train['r8'], test['r8'], 'r8', False, None)
-    # test_accuracy('DM', train['r8'], test['r8'], 'r8', False, None)
-    # test_accuracy('BLM', train['r8'], test['r8'], 'r8', False, None)
-    # test_accuracy('GDM', train['r8'], test['r8'], 'r8', False, None)
-    # test_accuracy('DM', train['r8'], test['r8'], 'r8', True, None)
-    # test_accuracy('BLM', train['r8'], test['r8'], 'r8', True, None)
-    # test_accuracy('GDM', train['r8'], test['r8'], 'r8', True, None)

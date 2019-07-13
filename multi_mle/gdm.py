@@ -56,7 +56,8 @@ def gdm_init_params(X):
     sum_alpha = np.divide((mean[nonzeros] - m2[nonzeros]), (m2[nonzeros] - (np.power(mean[nonzeros], 2))))
     sum_alpha[sum_alpha == 0] = 1  # required to prevent division by zero
     var_pk = np.divide(np.multiply(mean, 1 - mean), 1 + sum_alpha)
-    log_sum_alpha = ((D - 1) ** -1) * np.sum(np.log(np.divide(np.multiply(mean, 1 - mean), var_pk) - 1))
+    alpha = np.abs(np.divide(np.multiply(mean, 1 - mean), var_pk) - 1)
+    log_sum_alpha = ((D - 1) ** -1) * np.sum(np.log(alpha))
     s = np.exp(log_sum_alpha)
     if s == 0:
         s = 1
