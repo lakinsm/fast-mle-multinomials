@@ -68,7 +68,7 @@ def blm_init_params(X):
     if s == 0:
         s = 1
     d_params = np.squeeze(np.array(s * mean))
-    return np.append(d_params, np.sum(d_params[:-1]))
+    return np.append(d_params, np.mean(d_params[:-1]))
 
 
 def blm_hessian_precompute(U, v_d, v_d1, theta):
@@ -91,6 +91,8 @@ def blm_hessian_precompute(U, v_d, v_d1, theta):
 
     # z_d terms
     for z in range(z_d):
+        if z % 1000 == 0:
+            print('{} / {}'.format(z, z_d))
         # alpha_d parameters
         for d in range(D1-1):
             if z < len(U[d]):
@@ -231,6 +233,7 @@ def blm_half_stepping(U, vd, vd1, params, lprob, current_lprob, deltas, threshol
     local_lprob = lprob
     learn_rate = 1.0
     while local_lprob < current_lprob:
+        print('halfstep', lprob)
         if learn_rate < threshold:
             print("BLM MLE converged with small learn rate")
             return params, local_lprob, False
@@ -255,8 +258,8 @@ def blm_newton_raphson(U, vd, vd1, params, max_steps, gradient_sq_threshold, lea
     :param learn_rate_threshold: Threshold under which optimization stops for half-stepping
     :return: Results of the MLE computation for parameters 1:D+1
     """
-    current_lprob = -2 ** 20
-    delta_lprob = 2 ** 20
+    current_lprob = -2e20
+    delta_lprob = 2e20
     step = 0
     while step < max_steps:
         if delta_lprob < delta_lprob_threshold:
@@ -264,11 +267,14 @@ def blm_newton_raphson(U, vd, vd1, params, max_steps, gradient_sq_threshold, lea
             return blm_renormalize(params)
         step += 1
         g, h, c, lprob = blm_hessian_precompute(U, vd, vd1, params)
+        print(lprob, 'Lprob')
         gradient_sq = np.sum(np.power(g, 2))
         if gradient_sq < gradient_sq_threshold:
             print("BLM MLE converged with small gradient")
             return blm_renormalize(params)
         deltas = blm_step(h, g, c)
+        temp = params - deltas
+        print(list(temp[temp < 0]), 'Test Params')
         if lprob > current_lprob:
             test_params = params - deltas
             if np.any(test_params < 0):

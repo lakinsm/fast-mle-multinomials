@@ -28,8 +28,8 @@ def load_data(folder):
                 if not line:
                     continue
                 truth_label, words = line.split('\t')
-                if len(words) < 3:  # filter out low quality training observations
-                    continue
+                # if len(words) < 3:  # filter out low quality training observations
+                #     continue
                 all_datasets[dataset] += ((truth_label, words.split()),)
     return all_datasets
 
@@ -61,8 +61,8 @@ def tokenize_train(dataset):
                 nonzero_idx += 1
             else:
                 zero_idxs.add(j)
-        tokenized[k][0] = np.delete(tokenized[k][0], np.array(list(zero_idxs)), axis=1)
-
+        if zero_idxs:
+            tokenized[k][0] = np.delete(tokenized[k][0], np.array(list(zero_idxs)), axis=1)
     return tokenized, class_labels, key_idxs, value_idxs
 
 
@@ -91,8 +91,15 @@ def compute_naive_bayes(D, X_t, d_labels, x_labels, key_idxs, accuracy_matrix):
     return accuracy_matrix
 
 
-def test_accuracy(distribution, train, test, dataset_name, mean_normalize, result_file):
+def test_accuracy(distribution, train, test, dataset_name, mean_normalize, result_file, write_out=False):
     X, class_labels, key_idxs, value_idxs = tokenize_train(train)
+    print(X['01_servicos'][0].shape)
+
+    if write_out:
+        matrix_file = '.'.join(result_file.split('.')[:-1]) + '.matrix'
+        with open(matrix_file, 'wb') as mfile:
+            np.savetxt(mfile, X['01_servicos'][0], fmt='%d')
+
     simplex_matrix = np.zeros((len(value_idxs), len(class_labels)), dtype=np.float64)
     accuracy_matrix = [[0, 0, 0, 0] for _ in class_labels]
 
@@ -112,11 +119,19 @@ def test_accuracy(distribution, train, test, dataset_name, mean_normalize, resul
             simplex_matrix[:, i] += float(1)/simplex_matrix.shape[0]
             simplex_matrix[:, i] = np.log(simplex_matrix[:, i] / np.sum(simplex_matrix[:, i]))
     elif distribution == 'BLM':
+        class_labels = ('01_servicos',)
         for i, c in enumerate(class_labels):
+            print('Begin precalc')
             U, vd, vd1 = blm.blm_precalc(X[c][0])
+            print('End precalc')
+            print('Begin Init params')
             params = blm.blm_init_params(X[c][0])
+            print('End Init params')
+
+            print('Begin NR')
             mle = blm.blm_newton_raphson(U, vd, vd1, params, max_steps, gradient_sq_threshold, learn_rate_threshold,
                                          delta_lprob_threshold)
+            print('End NR')
             if mean_normalize:
                 class_simplex = blm.blm_renormalize(mle)
             else:
@@ -188,7 +203,15 @@ if __name__ == '__main__':
     test = load_data(sys.argv[2])
     datasets = train.keys()
 
-    for d in datasets:
-        for distribution in ('pooledDM', 'DM', 'BLM', 'GDM'):
-            test_accuracy(distribution, train[d], test[d], d, True, sys.argv[3])
+    subset = {'cade': tuple()}
+
+    for x in train['cade']:
+        if x[0] == '01_servicos':
+            subset['cade'] += (x,)
+
+    test_accuracy('BLM', subset['cade'], test['cade'], 'cade_test', True, '/mnt/temp/mle/cade_test.csv', True)
+
+    # for d in datasets:
+    #     for distribution in ('pooledDM', 'DM', 'BLM', 'GDM'):
+    #         test_accuracy(distribution, train[d], test[d], d, True, sys.argv[3])
 
