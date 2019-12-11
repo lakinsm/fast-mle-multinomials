@@ -1,4 +1,5 @@
 import numpy as np
+import sys
 
 
 def dm_precalc(X):
@@ -73,6 +74,8 @@ def dm_hessian_precompute(U, v, theta):
     constant = 0
     sum_theta = np.sum(theta)
     for z in range(len(v)):
+        if z % 1000 == 0:
+            print('Precompute: {} / {}'.format(z, len(v)))
         for d in range(D):
             if z < len(U[d]):
                 lprob += U[d][z] * np.log(theta[d] + z)
@@ -82,6 +85,7 @@ def dm_hessian_precompute(U, v, theta):
             # h_diag[d] += (v[z] * ((sum_theta + z)**-2))
         constant += v[z] * ((sum_theta + z)**-2)
         lprob -= v[z] * np.log(sum_theta + z)
+    print('Precompute: {} / {}\n'.format(len(v), len(v)))
     return gradient, h_diag, constant, lprob
 
 
@@ -206,6 +210,38 @@ def dm_newton_raphson(U, v, params, max_steps, gradient_sq_threshold, learn_rate
                 delta_lprob = np.abs(lprob - current_lprob)
                 current_lprob = lprob
     print("DM MLE reached max iterations")
+    return dm_renormalize(params)
+
+
+def dm_newton_raphson2(U, vd, params, max_steps, delta_eps_threshold, delta_lprob_threshold, verbose=False):
+    current_lprob = -2e20
+    delta_lprob = 2e20
+    delta_params = 2e20
+    step = 0
+    while (delta_params > delta_eps_threshold) and (step < max_steps) and (delta_lprob > delta_lprob_threshold):
+        step += 1
+        g, h, c, lprob = dm_hessian_precompute(U, vd, params)
+        delta_lprob = np.abs(lprob - current_lprob)
+        current_lprob = lprob
+        deltas = dm_step(h, g, c)
+        delta_params = np.sum(np.abs(deltas)) # See appendix
+        params -= deltas
+        if verbose:
+            print('Lprob: {}\tDelta Lprob: {}'.format(
+                lprob,
+                delta_lprob
+            ))
+            print('\tDelta Sum Eps: {}'.format(delta_params))
+            print('\tParams: {}'.format(params))
+            print('\tDeltas: {}'.format(deltas))
+        if np.any(params < 0):
+            print('Negative parameters detected, exiting: {}'.format(
+                params[params < 0]
+            ))
+            sys.exit(1)
+    print('Total steps: {}\n'.format(
+        step
+    ))
     return dm_renormalize(params)
 
 

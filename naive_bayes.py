@@ -8,10 +8,10 @@ import multi_mle.gdm as gdm
 # from multi_mle.mle_utils import silent_remove
 
 
-gradient_sq_threshold = 2**-20
-learn_rate_threshold = 2**-10
-delta_lprob_threshold = 2**-10
-max_steps = 1000
+delta_eps_threshold = 1e-5
+learn_rate_threshold = 2e-10
+delta_lprob_threshold = 1e-5
+max_steps = 15
 batch_size = 1000
 
 
@@ -34,10 +34,12 @@ def load_data(folder):
     return all_datasets
 
 
-def tokenize_train(dataset):
-    zipped = tuple(zip(*dataset))
-    uniq_values = set([x for y in zipped[1] for x in y])
-    uniq_keys = set(zipped[0])
+def tokenize_train(train, test):
+    train_zipped = tuple(zip(*train))
+    test_zipped = tuple(zip(*test))
+    uniq_values = set([x for y in train_zipped[1] for x in y])
+    uniq_values.add(tuple(x for y in test_zipped[1] for x in y))
+    uniq_keys = set(train_zipped[0])
     value_idxs = {k: i for i, k in enumerate(uniq_values)}
     key_idxs = {k: i for i, k in enumerate(uniq_keys)}
     class_labels = tuple(k for _, k in (sorted(((i, k) for k, i in key_idxs.items()))))
@@ -46,8 +48,8 @@ def tokenize_train(dataset):
     print(key_idxs)
     print(class_labels)
 
-    tokenized = {k: [np.zeros((zipped[0].count(k), len(uniq_values)), dtype=np.int64), {}] for k in uniq_keys}
-    for truth_label, words in dataset:
+    tokenized = {k: [np.zeros((train_zipped[0].count(k), len(uniq_values)), dtype=np.int64), {}] for k in uniq_keys}
+    for truth_label, words in train:
         for w in words:
             tokenized[truth_label][0][key_observed_count[truth_label], value_idxs[w]] += 1
         key_observed_count[truth_label] += 1
@@ -91,14 +93,8 @@ def compute_naive_bayes(D, X_t, d_labels, x_labels, key_idxs, accuracy_matrix):
     return accuracy_matrix
 
 
-def test_accuracy(distribution, train, test, dataset_name, mean_normalize, result_file, write_out=False):
-    X, class_labels, key_idxs, value_idxs = tokenize_train(train)
-    print(X['01_servicos'][0].shape)
-
-    if write_out:
-        matrix_file = '.'.join(result_file.split('.')[:-1]) + '.matrix'
-        with open(matrix_file, 'wb') as mfile:
-            np.savetxt(mfile, X['01_servicos'][0], fmt='%d')
+def test_accuracy(distribution, train, test, dataset_name, smoothing_method, result_file):
+    X, class_labels, key_idxs, value_idxs = tokenize_train(train, test)
 
     simplex_matrix = np.zeros((len(value_idxs), len(class_labels)), dtype=np.float64)
     accuracy_matrix = [[0, 0, 0, 0] for _ in class_labels]
@@ -107,95 +103,92 @@ def test_accuracy(distribution, train, test, dataset_name, mean_normalize, resul
         for i, c in enumerate(class_labels):
             U, v = dm.dm_precalc(X[c][0])
             params = dm.dm_init_params(X[c][0])
-            mle = dm.dm_newton_raphson(U, v, params, max_steps, gradient_sq_threshold,
-                                       learn_rate_threshold, delta_lprob_threshold)
-            if mean_normalize:
-                class_simplex = dm.dm_renormalize(mle)
-            else:
-                class_simplex = dm.dm_extract_generating_params(mle)
-
+            mle = dm.dm_newton_raphson2(U, v, params, max_steps, delta_eps_threshold, delta_lprob_threshold, True)
+            class_simplex = dm.dm_renormalize(mle)
             for j, p in enumerate(class_simplex):
                 simplex_matrix[X[c][1][j], i] = p
-            simplex_matrix[:, i] += float(1)/simplex_matrix.shape[0]
-            simplex_matrix[:, i] = np.log(simplex_matrix[:, i] / np.sum(simplex_matrix[:, i]))
+
     elif distribution == 'BLM':
-        class_labels = ('01_servicos',)
         for i, c in enumerate(class_labels):
-            print('Begin precalc')
             U, vd, vd1 = blm.blm_precalc(X[c][0])
-            print('End precalc')
-            print('Begin Init params')
             params = blm.blm_init_params(X[c][0])
-            print('End Init params')
-
-            print('Begin NR')
-            mle = blm.blm_newton_raphson(U, vd, vd1, params, max_steps, gradient_sq_threshold, learn_rate_threshold,
-                                         delta_lprob_threshold)
-            print('End NR')
-            if mean_normalize:
-                class_simplex = blm.blm_renormalize(mle)
-            else:
-                class_simplex = blm.blm_extract_generating_params(mle)
-
+            mle = blm.blm_newton_raphson2(U, vd, vd1, params, max_steps, delta_eps_threshold,
+                                          delta_lprob_threshold, True)
+            class_simplex = blm.blm_renormalize(mle)
             for j, p in enumerate(class_simplex):
                 simplex_matrix[X[c][1][j], i] = p
-            simplex_matrix[:, i] += float(1) / simplex_matrix.shape[0]
-            simplex_matrix[:, i] = np.log(simplex_matrix[:, i] / np.sum(simplex_matrix[:, i]))
+
     elif distribution == 'GDM':
         for i, c in enumerate(class_labels):
             U, vd = gdm.gdm_precalc(X[c][0])
             params = gdm.gdm_init_params(X[c][0])
-            mle = gdm.gdm_newton_raphson(U, vd, params, max_steps, gradient_sq_threshold,
+            mle = gdm.gdm_newton_raphson(U, vd, params, max_steps, delta_eps_threshold,
                                          learn_rate_threshold, delta_lprob_threshold)
-            if mean_normalize:
-                class_simplex = gdm.gdm_renormalize(mle)
-            else:
-                class_simplex = gdm.gdm_extract_generating_params(mle)
+            class_simplex = gdm.gdm_renormalize(mle)
             for j, p in enumerate(class_simplex):
                 simplex_matrix[X[c][1][j], i] = p
-            simplex_matrix[:, i] += float(1) / simplex_matrix.shape[0]
-            simplex_matrix[:, i] = np.log(simplex_matrix[:, i] / np.sum(simplex_matrix[:, i]))
+
     elif distribution == 'pooledDM':
         for i, c in enumerate(class_labels):
-            class_simplex = 1 + np.squeeze(np.sum(X[c][0], axis=0))
+            class_simplex = np.squeeze(np.sum(X[c][0], axis=0))
+            class_simplex = class_simplex / np.sum(class_simplex)
             for j, p in enumerate(class_simplex):
                 simplex_matrix[X[c][1][j], i] = p
-            simplex_matrix[:, i][simplex_matrix[:, i] == 0] = 1
-            simplex_matrix[:, i] = np.log(simplex_matrix[:, i] / np.sum(simplex_matrix[:, i]))
+
     else:
         raise ValueError('Distribution must be one of DM, BLM, or GDM.  Provided: {}'.format(distribution))
 
-    observations_processed = 0
-    while observations_processed < len(test):
-        if observations_processed + batch_size <= len(test):
-            ndim = batch_size
-        else:
-            ndim = len(test) - observations_processed
-        observed_matrix = np.zeros((ndim, len(value_idxs)), dtype=np.int64)
-        observed_labels = ()
+    if smoothing_method == 'Lidstone':
+        pass
+    elif smoothing_method == 'Dirichlet':
+        pass
+    elif smoothing_method == 'JM' or smoothing_method == 'Jelinek-Mercer':
+        pass
+    elif smoothing_method == 'AD' or smoothing_method == 'Absolute Discounting':
+        pass
+    elif smoothing_method == 'TS' or smoothing_method == 'Two-stage':
+        pass
+    elif smoothing_method == 'All':
+        pass
+    else:
+        if smoothing_method != 'None':
+            sys.stderr.write('Smoothing method must be one of: '
+                             '[Lidstone, Dirichlet, Jelinek-Mercer, Absolute Discounting, Two-stage, All]')
+            sys.exit(1)
 
-        for i in range(0, ndim):
-            observed_matrix[i, :], truth_label = tokenize_test(test[observations_processed + i], value_idxs)
-            observed_labels += (truth_label,)
-        accuracy_matrix = compute_naive_bayes(observed_matrix, simplex_matrix, observed_labels, class_labels, key_idxs,
-                                              accuracy_matrix)
-        observations_processed += ndim
-        print("Observations processed: {}".format(observations_processed))
+    if smoothing_method == 'All':
+        pass
+    else:
+        observations_processed = 0
+        while observations_processed < len(test):
+            if observations_processed + batch_size <= len(test):
+                ndim = batch_size
+            else:
+                ndim = len(test) - observations_processed
+            observed_matrix = np.zeros((ndim, len(value_idxs)), dtype=np.int64)
+            observed_labels = ()
 
-    print(distribution, mean_normalize)
-    for c in accuracy_matrix:
-        print(c)
-    print('\n')
+            for i in range(0, ndim):
+                observed_matrix[i, :], truth_label = tokenize_test(test[observations_processed + i], value_idxs)
+                observed_labels += (truth_label,)
+            accuracy_matrix = compute_naive_bayes(observed_matrix, simplex_matrix, observed_labels, class_labels, key_idxs,
+                                                  accuracy_matrix)
+            observations_processed += ndim
+            print("Observations processed: {}".format(observations_processed))
 
-    with open(result_file, 'a') as out:
-        for c in range(len(accuracy_matrix)):
-            out.write('{},{},{},{},{}\n'.format(
-                dataset_name,
-                distribution,
-                str(mean_normalize),
-                class_labels[c],
-                ','.join([str(x) for x in accuracy_matrix[c]])
-            ))
+            for c in accuracy_matrix:
+                print(c)
+            print('\n')
+
+            with open(result_file, 'a') as out:
+                for c in range(len(accuracy_matrix)):
+                    out.write('{},{},{},{},{}\n'.format(
+                        dataset_name,
+                        distribution,
+                        smoothing_method,
+                        class_labels[c],
+                        ','.join([str(x) for x in accuracy_matrix[c]])
+                    ))
 
 
 if __name__ == '__main__':
@@ -203,13 +196,8 @@ if __name__ == '__main__':
     test = load_data(sys.argv[2])
     datasets = train.keys()
 
-    subset = {'cade': tuple()}
-
-    for x in train['cade']:
-        if x[0] == '01_servicos':
-            subset['cade'] += (x,)
-
-    test_accuracy('BLM', subset['cade'], test['cade'], 'cade_test', True, '/mnt/temp/mle/cade_test.csv', True)
+    test_accuracy('DM', train['cade'], test['cade'], 'cade', 'All', sys.argv[3])
+    test_accuracy('BLM', train['cade'], test['cade'], 'cade', 'All', sys.argv[3])
 
     # for d in datasets:
     #     for distribution in ('pooledDM', 'DM', 'BLM', 'GDM'):

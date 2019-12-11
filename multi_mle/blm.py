@@ -1,4 +1,5 @@
 import numpy as np
+import sys
 
 
 def blm_precalc(X):
@@ -68,7 +69,8 @@ def blm_init_params(X):
     if s == 0:
         s = 1
     d_params = np.squeeze(np.array(s * mean))
-    return np.append(d_params, np.mean(d_params[:-1]))
+    # return np.append(d_params, np.mean(d_params[:-1]))
+    return np.append(d_params, np.sum(d_params[:-1]))
 
 
 def blm_hessian_precompute(U, v_d, v_d1, theta):
@@ -92,7 +94,7 @@ def blm_hessian_precompute(U, v_d, v_d1, theta):
     # z_d terms
     for z in range(z_d):
         if z % 1000 == 0:
-            print('{} / {}'.format(z, z_d))
+            print('Precompute: {} / {}'.format(z, z_d1))
         # alpha_d parameters
         for d in range(D1-1):
             if z < len(U[d]):
@@ -123,6 +125,8 @@ def blm_hessian_precompute(U, v_d, v_d1, theta):
 
     # z_d+1 terms
     for z in range(z_d, z_d1):
+        if z % 1000 == 0:
+            print('Precompute: {} / {}'.format(z, z_d1))
         # beta parameter
         if z < len(U[D1 - 1]):
             lprob += U[D1 - 1][z] * np.log(theta[-2] + z)
@@ -138,6 +142,7 @@ def blm_hessian_precompute(U, v_d, v_d1, theta):
 
         # constants
         constants[1] += v_d1[z] * ((theta[-2] + theta[-1] + z)**-2)
+    print('Precompute: {} / {}\n'.format(z_d1, z_d1))
     return gradient, h_diag, constants, lprob
 
 
@@ -231,16 +236,18 @@ def blm_half_stepping(U, vd, vd1, params, lprob, current_lprob, deltas, threshol
     """
     local_params = params
     local_lprob = lprob
-    learn_rate = 1.0
+    learn_rate = 0.9
     while local_lprob < current_lprob:
-        print('halfstep', lprob)
+        print('halfstep', lprob, current_lprob)
         if learn_rate < threshold:
-            print("BLM MLE converged with small learn rate")
-            return params, local_lprob, False
+            print("BLM MLE failed half stepping, best Lprob: {}".format(blm_log_likelihood_fast(U, vd, vd1, params)))
+            return params, current_lprob, False
         local_params = params - (learn_rate * deltas)
         learn_rate *= 0.5
         local_lprob = blm_log_likelihood_fast(U, vd, vd1, local_params)
+        print("Half Step Lprob", local_lprob, current_lprob)
         if local_lprob == np.inf:
+            print("Half step deltas produced negative parameter estimates")
             local_lprob = lprob
             continue
     return local_params, local_lprob, True
@@ -274,11 +281,11 @@ def blm_newton_raphson(U, vd, vd1, params, max_steps, gradient_sq_threshold, lea
             return blm_renormalize(params)
         deltas = blm_step(h, g, c)
         temp = params - deltas
-        print(list(temp[temp < 0]), 'Test Params')
+        print(list(temp[temp < 0]), 'Negative Test Params (Should be empty set)')
         if lprob > current_lprob:
             test_params = params - deltas
             if np.any(test_params < 0):
-                params, lprob, success = blm_half_stepping(U, vd, vd1, params, -2 ** 20, current_lprob, deltas, learn_rate_threshold)
+                params, lprob, success = blm_half_stepping(U, vd, vd1, params, lprob, current_lprob, deltas, learn_rate_threshold)
                 if not success:
                     return blm_renormalize(params)
                 else:
@@ -287,7 +294,7 @@ def blm_newton_raphson(U, vd, vd1, params, max_steps, gradient_sq_threshold, lea
             else:
                 delta_lprob = np.abs(lprob - current_lprob)
                 current_lprob = lprob
-                params -= deltas
+                params = test_params
         else:
             params, lprob, success = blm_half_stepping(U, vd, vd1, params, lprob, current_lprob, deltas, learn_rate_threshold)
             if not success:
@@ -296,6 +303,38 @@ def blm_newton_raphson(U, vd, vd1, params, max_steps, gradient_sq_threshold, lea
                 delta_lprob = np.abs(lprob - current_lprob)
                 current_lprob = lprob
     print("BLM MLE reached max iterations")
+    return blm_renormalize(params)
+
+
+def blm_newton_raphson2(U, vd, vd1, params, max_steps, delta_eps_threshold, delta_lprob_threshold, verbose=False):
+    current_lprob = -2e20
+    delta_lprob = 2e20
+    delta_params = 2e20
+    step = 0
+    while (delta_params > delta_eps_threshold) and (step < max_steps) and (delta_lprob > delta_lprob_threshold):
+        step += 1
+        g, h, c, lprob = blm_hessian_precompute(U, vd, vd1, params)
+        delta_lprob = np.abs(lprob - current_lprob)
+        current_lprob = lprob
+        deltas = blm_step(h, g, c)
+        delta_params = np.sum(np.abs(deltas[:-2])) + (deltas[-2] / (deltas[-2] + deltas[-1]))  # See appendix
+        params -= deltas
+        if verbose:
+            print('Lprob: {}\tDelta Lprob: {}'.format(
+                lprob,
+                delta_lprob
+            ))
+            print('\tDelta Sum Eps: {}'.format(delta_params))
+            print('\tParams: {}'.format(params))
+            print('\tDeltas: {}'.format(deltas))
+        if np.any(params < 0):
+            print('Negative parameters detected, exiting: {}'.format(
+                params[params < 0]
+            ))
+            sys.exit(1)
+    print('Total steps: {}\n'.format(
+        step
+    ))
     return blm_renormalize(params)
 
 
