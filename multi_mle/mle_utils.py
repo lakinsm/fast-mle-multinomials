@@ -138,8 +138,8 @@ class MLEngine(object):
             with open(filepath, 'rb') as infile:
                 X = pickle.load(infile)
 
-            params = blm.blm_init_params(X)
-            U, vd, vd1 = blm.blm_precalc(X)
+            params = blm.blm_init_params(X[0])
+            U, vd, vd1 = blm.blm_precalc(X[0])
             mle = blm.blm_newton_raphson2(U, vd, vd1, params,
                                           self.max_steps,
                                           self.delta_eps_threshold,

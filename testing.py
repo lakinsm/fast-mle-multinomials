@@ -102,20 +102,20 @@ def mp_test():
 
 
 def mp_test2():
-    engine = mutils.MLEngine(max_steps, delta_eps_threshold, delta_lprob_threshold, '/mnt/temp/mle', 'cade', True)
+    engine = mutils.MLEngine(max_steps, delta_eps_threshold, delta_lprob_threshold, '/mnt/temp/mle', 'ngram', True)
     test = None
     if engine.count_files_exist:
         X, class_labels, key_idxs, value_idxs = engine.load_count_files()
     else:
-        train = mutils.load_data('/mnt/phd_repositories/fast-mle-multinomials/data/debug/train/')
-        test = mutils.load_data('/mnt/phd_repositories/fast-mle-multinomials/data/debug/test/')
-        X, class_labels, key_idxs, value_idxs = mutils.tokenize_train(train['cade'], test['cade'])
+        train = mutils.load_data('/mnt/phd_repositories/fast-mle-multinomials/data/debug/smooth/')
+        test = mutils.load_data('/mnt/phd_repositories/fast-mle-multinomials/data/debug/smooth/')
+        X, class_labels, key_idxs, value_idxs = mutils.tokenize_train(train['ngram'], test['ngram'])
         engine.write_count_files((X, class_labels, key_idxs, value_idxs))
 
     filepaths = engine.multi_pickle_dump((X[c], c) for c in class_labels)
     pool = mp.Pool(np.min((10, len(class_labels))))
     try:
-        outputs = pool.map(engine.dm_mle_parallel, filepaths)
+        outputs = pool.map(engine.blm_mle_parallel, filepaths)
     finally:
         pool.close()
         pool.join()
@@ -126,12 +126,12 @@ def mp_test2():
         simplex_matrix[:, key_idxs[label]] = simplex
 
     if not test:
-        test = mutils.load_data('/mnt/phd_repositories/fast-mle-multinomials/data/debug/test/')
+        test = mutils.load_data('/mnt/phd_repositories/fast-mle-multinomials/data/debug/smooth/')
 
     smoothed = sm.lidstone_smoothing(simplex_matrix, X, class_labels)
 
-    mutils.output_results_naive_bayes(smoothed, test['cade'], class_labels, key_idxs, value_idxs,
-                                      'cade', 'DM', 'Lidstone', 'n=1', '/mnt/temp/my_results.txt', batch_size)
+    mutils.output_results_naive_bayes(smoothed, test['ngram'], class_labels, key_idxs, value_idxs,
+                                      'ngram', 'BLM', 'Lidstone', 'n=1', '/mnt/temp/my_results.txt', batch_size)
 
 
 

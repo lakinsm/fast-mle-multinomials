@@ -15,7 +15,7 @@ def lidstone_smoothing(S, X, class_labels, n=1):
         class_counts = np.squeeze(np.sum(X[c][0], axis=0))
         S[:, i] += float(n) / ((n * S.shape[0]) + np.sum(class_counts))
         S[:, i] /= np.sum(S[:, i])
-    return S
+    return np.log(S)
 
 
 def dirichlet_smoothing(S, X, class_labels, mu=0.95, n=1):
@@ -42,7 +42,7 @@ def dirichlet_smoothing(S, X, class_labels, mu=0.95, n=1):
         # Linear interpolation between Lidstone smoothed MLE estimates and corpus probabilities for each word
         S[:, i] = ((np.sum(class_counts) / (np.sum(class_counts) + mu)) * S[:, i]) + \
                   ((mu / (np.sum(class_counts) + mu)) * word_corpus)
-    return S
+    return np.log(S)
 
 
 def jelinek_mercer_smoothing(S, X, class_labels, beta=0.5, n=1):
@@ -65,7 +65,7 @@ def jelinek_mercer_smoothing(S, X, class_labels, beta=0.5, n=1):
 
         # Linear interpolation between Lidstone smoothed MLE estimates and the corpus probabilities for each word
         S[:, i] = ((1 - beta) * S[:, i]) + (beta * word_corpus)
-    return S
+    return np.log(S)
 
 
 def absolute_discounting_smoothing(S, X, class_labels, delta=0.5, n=1):
@@ -89,7 +89,7 @@ def absolute_discounting_smoothing(S, X, class_labels, delta=0.5, n=1):
         # Discount delta from non-zero parameters and pull from corpus model in equal proportion to discounts
         S[:, i] = np.array([np.max([x - (delta / np.sum(class_counts)), 0]) for x in S[:, i]]) + \
                   ((delta / np.sum(class_counts)) * np.sum(S[:, i] > 0) * word_corpus)
-    return S
+    return np.log(S)
 
 
 def two_step_smoothing(S, X, class_labels, mu=0.95, beta=0.5, n=1):
@@ -114,4 +114,4 @@ def two_step_smoothing(S, X, class_labels, mu=0.95, beta=0.5, n=1):
         # Combination of JM interpolation with Dirichlet prior
         S[:, i] = ((1 - beta) * ((np.sum(class_counts) / (np.sum(class_counts) + mu)) * S[:, i]) + \
                    ((mu / (np.sum(class_counts) + mu)) * word_corpus)) + (beta * word_corpus)
-    return S
+    return np.log(S)
