@@ -18,6 +18,22 @@ def lidstone_smoothing(S, X, class_labels, n=1):
     return np.log(S)
 
 
+def lidstone_smoothing2(S, X, class_labels, n=1):
+    """
+    Smooth the simplex estimates by a count of n using Lidstone smoothing (Laplace smoothing if n=1).  Since we
+    aren't incorporating this into the MLE, it is not exactly Lidstone smoothing as traditionally defined, however
+    it will produce a reasonable approximation.
+    :param S: Simplex float matrix of dimension (features, classes), with columns that sum to 1
+    :param X: Original count matrix/dictionary structure as output by tokenize_train()
+    :param class_labels: List of strings, where each entry is the name of the classes in S and X
+    :param n: Value to add via Lidstone smoothing (default 1 for Laplace smoothing)
+    """
+    for i, c in enumerate(class_labels):
+        S[:, i] += float(n) / (n * S.shape[0])
+        S[:, i] /= np.sum(S[:, i])
+    return np.log(S)
+
+
 def dirichlet_smoothing(S, X, class_labels, mu=0.95, n=1):
     """
     Smooth the simplex estimates using Dirichlet prior smoothing.
@@ -68,7 +84,7 @@ def jelinek_mercer_smoothing(S, X, class_labels, beta=0.5, n=1):
     return np.log(S)
 
 
-def absolute_discounting_smoothing(S, X, class_labels, delta=0.5, n=1):
+def absolute_discounting_smoothing(S, X, class_labels, delta=0.01, n=1):
     """
     Smooth the simplex estimates using Absolute Discounting smoothing.
     :param S: Simplex float matrix of dimension (features, classes), with columns that sum to 1

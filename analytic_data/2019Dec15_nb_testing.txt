@@ -1,0 +1,146 @@
+Empirical, Lidstone1
+02_sociedade		[1124, 627, 1304, 10606]
+04_informatica		[983, 1089, 553, 11036]
+10_noticias		[175, 211, 206, 13069]
+09_esportes		[357, 232, 273, 12799]
+08_cultura		[292, 225, 351, 12793]
+03_lazer		[1152, 430, 740, 11339]
+07_internet		[496, 1013, 300, 11852]
+05_saude		[659, 198, 394, 12410]
+11_ciencias		[140, 183, 170, 13168]
+12_compras_on_line		[110, 209, 92, 13250]
+06_educacao		[587, 442, 357, 12275]
+01_servicos		[1835, 892, 1011, 9923]
+Sensitivity/Recall: 57.9
+Specificity: 96.17
+PPV/Precision: 57.9
+NPV: 96
+Accuracy: 92.98
+F1: 57.9
+
+
+Empirical, Lidstone2
+08_cultura		[288, 227, 355, 12791]
+03_lazer		[1046, 339, 846, 11430]
+07_internet		[525, 1310, 271, 11555]
+06_educacao		[616, 517, 328, 12200]
+10_noticias		[202, 470, 179, 12810]
+04_informatica		[938, 946, 598, 11179]
+05_saude		[668, 225, 385, 12383]
+09_esportes		[378, 437, 252, 12594]
+02_sociedade		[830, 356, 1598, 10877]
+11_ciencias		[173, 266, 137, 13085]
+12_compras_on_line		[129, 511, 73, 12948]
+01_servicos		[1643, 621, 1203, 10194]
+Sensitivity/Recall: 54.43
+Specificity: 95.86
+PPV/Precision: 54.43
+NPV: 96
+Accuracy: 92.41
+F1: 54.43
+
+
+Empirical, Dirichlet 0.95
+11_ciencias		[140, 183, 170, 13168]
+12_compras_on_line		[110, 209, 92, 13250]
+09_esportes		[357, 232, 273, 12799]
+04_informatica		[983, 1089, 553, 11036]
+05_saude		[659, 198, 394, 12410]
+03_lazer		[1152, 430, 740, 11339]
+08_cultura		[292, 225, 351, 12793]
+02_sociedade		[1124, 627, 1304, 10606]
+07_internet		[496, 1013, 300, 11852]
+10_noticias		[175, 211, 206, 13069]
+01_servicos		[1835, 892, 1011, 9923]
+06_educacao		[587, 442, 357, 12275]
+Sensitivity/Recall: 57.9
+Specificity: 96.17
+PPV/Precision: 57.9
+NPV: 96
+Accuracy: 92.98
+F1: 57.9
+
+
+Empirical, Dirichlet 0.1
+02_sociedade		[1124, 627, 1304, 10606]
+06_educacao		[587, 442, 357, 12275]
+05_saude		[659, 198, 394, 12410]
+04_informatica		[983, 1089, 553, 11036]
+03_lazer		[1152, 430, 740, 11339]
+11_ciencias		[140, 183, 170, 13168]
+12_compras_on_line		[110, 209, 92, 13250]
+09_esportes		[357, 232, 273, 12799]
+07_internet		[496, 1013, 300, 11852]
+10_noticias		[175, 211, 206, 13069]
+01_servicos		[1835, 892, 1011, 9923]
+08_cultura		[292, 225, 351, 12793]
+Sensitivity/Recall: 57.9
+Specificity: 96.17
+PPV/Precision: 57.9
+NPV: 96
+Accuracy: 92.98
+F1: 57.9
+
+
+Empirical, JM 0.5
+01_servicos		[1827, 783, 1019, 10032]
+09_esportes		[383, 291, 247, 12740]
+07_internet		[509, 955, 287, 11910]
+04_informatica		[991, 907, 545, 11218]
+05_saude		[696, 225, 357, 12383]
+12_compras_on_line		[124, 353, 78, 13106]
+11_ciencias		[169, 230, 141, 13121]
+03_lazer		[1152, 363, 740, 11406]
+10_noticias		[184, 271, 197, 13009]
+02_sociedade		[1071, 570, 1357, 10663]
+08_cultura		[327, 270, 316, 12748]
+06_educacao		[597, 413, 347, 12304]
+Sensitivity/Recall: 58.78
+Specificity: 96.25
+PPV/Precision: 58.78
+NPV: 96
+Accuracy: 93.13
+F1: 58.78
+
+
+Empirical, AD 0.01
+06_educacao		[589, 433, 355, 12284]
+05_saude		[663, 201, 390, 12407]
+08_cultura		[294, 225, 349, 12793]
+10_noticias		[178, 233, 203, 13047]
+02_sociedade		[1105, 600, 1323, 10633]
+09_esportes		[357, 240, 273, 12791]
+12_compras_on_line		[120, 303, 82, 13156]
+11_ciencias		[153, 194, 157, 13157]
+03_lazer		[1146, 418, 746, 11351]
+01_servicos		[1833, 859, 1013, 9956]
+07_internet		[496, 972, 300, 11893]
+04_informatica		[980, 1069, 556, 11056]
+Sensitivity/Recall: 57.93
+Specificity: 96.18
+PPV/Precision: 57.93
+NPV: 96
+Accuracy: 92.99
+F1: 57.93
+
+
+Empirical, TS 0.95, 0.5
+05_saude		[696, 225, 357, 12383]
+11_ciencias		[169, 230, 141, 13121]
+06_educacao		[597, 413, 347, 12304]
+12_compras_on_line		[124, 353, 78, 13106]
+07_internet		[509, 955, 287, 11910]
+01_servicos		[1827, 783, 1019, 10032]
+09_esportes		[383, 291, 247, 12740]
+04_informatica		[991, 907, 545, 11218]
+03_lazer		[1152, 363, 740, 11406]
+02_sociedade		[1071, 570, 1357, 10663]
+10_noticias		[184, 271, 197, 13009]
+08_cultura		[327, 270, 316, 12748]
+Sensitivity/Recall: 58.78
+Specificity: 96.25
+PPV/Precision: 58.78
+NPV: 96
+Accuracy: 93.13
+F1: 58.78
+

@@ -134,6 +134,25 @@ def mp_test2():
                                       'ngram', 'BLM', 'Lidstone', 'n=1', '/mnt/temp/my_results.txt', batch_size)
 
 
+def nb_test():
+    train = mutils.load_data('/mnt/phd_repositories/fast-mle-multinomials/data/debug/train')
+    test = mutils.load_data('/mnt/phd_repositories/fast-mle-multinomials/data/debug/test')
+    X, class_labels, key_idxs, value_idxs = mutils.tokenize_train(train['cade'], test['cade'])
+
+    simplex_matrix = np.zeros((len(value_idxs), len(class_labels)), dtype=np.float64)
+    for i, c in enumerate(class_labels):
+        class_simplex = np.squeeze(np.sum(X[c][0], axis=0))
+        class_simplex = class_simplex / np.sum(class_simplex)
+        for j, p in enumerate(class_simplex):
+            simplex_matrix[X[c][1][j], i] = p
+
+    smoothed_matrix = sm.two_step_smoothing(simplex_matrix, X, class_labels)
+
+    param_string = 'n=1'
+    mutils.output_results_naive_bayes(smoothed_matrix, test['cade'], class_labels, key_idxs, value_idxs,
+                                      'cade', 'BLM', 'Lidstone', param_string, '/mnt/temp/my_results.txt', batch_size)
+
+
 
 if __name__ == '__main__':
-    mp_test2()
+    nb_test()

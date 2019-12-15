@@ -231,8 +231,9 @@ def tokenize_train(train, test):
     for k in uniq_keys:
         nonzero_idx = 0
         zero_idxs = set()
+        feature_sums = np.sum(tokenized[k][0], axis=0)
         for j in range(len(uniq_values)):
-            if np.sum(tokenized[k][0][:, j]) > 0:
+            if feature_sums[j] > 0:
                 tokenized[k][1].setdefault(nonzero_idx, j)
                 nonzero_idx += 1
             else:
@@ -258,9 +259,10 @@ def r_zero_inflated_poisson(zero_inflation_prob, poisson_mean, n):
     return non_zero_idxs > 0, counts
 
 
-def compute_naive_bayes(D, X_t, test_set_labels, class_training_labels, key_idxs, accuracy_matrix):
-    classifications = [class_training_labels[c] for c in np.argmax(np.matmul(D, X_t), axis=1)]
+def compute_naive_bayes(Query_matrix, Training_matrix, test_set_labels, class_training_labels, key_idxs, accuracy_matrix):
+    classifications = [class_training_labels[c] for c in np.argmax(np.matmul(Query_matrix, Training_matrix), axis=1)]
     for i, c in enumerate(classifications):
+        print('{}\t{}'.format(c, test_set_labels[i]))
         for a in range(len(accuracy_matrix)):
             accuracy_matrix[a][3] += 1  # add true negative to all classes
         if c == test_set_labels[i]:
@@ -301,8 +303,32 @@ def output_results_naive_bayes(smoothed_matrix, test, class_labels, key_idxs, va
             len(test)
         ))
 
+
+    tp = 0
+    fp = 0
+    fn = 0
+    tn = 0
     for i, results in enumerate(accuracy_matrix):
+        tp += results[0]
+        fp += results[1]
+        fn += results[2]
+        tn += results[3]
         print('{}\t\t{}'.format(class_labels[i], results))
+    precision = float(tp) / (tp + fp)
+    recall = float(tp) / (tp + fn)
+    print('Sensitivity/Recall: {}\n'
+          'Specificity: {}\n'
+          'PPV/Precision: {}\n'
+          'NPV: {}\n'
+          'Accuracy: {}\n'
+          'F1: {}'.format(
+                    round(100*recall, 2),
+                    round(100*float(tn) / (tn + fp), 2),
+                    round(100*precision, 2),
+                    round(100*float(tn) / (tn + fn)),
+                    round(100*float(tp + tn) / (tp + fp + tn + fn), 2),
+                    round(100*float((2 * precision * recall) / (precision + recall)), 2)
+    ))
     print('\n')
 
     with open(result_file, 'a') as out:
