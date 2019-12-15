@@ -262,7 +262,7 @@ def r_zero_inflated_poisson(zero_inflation_prob, poisson_mean, n):
 def compute_naive_bayes(Query_matrix, Training_matrix, test_set_labels, class_training_labels, key_idxs, accuracy_matrix):
     classifications = [class_training_labels[c] for c in np.argmax(np.matmul(Query_matrix, Training_matrix), axis=1)]
     for i, c in enumerate(classifications):
-        print('{}\t{}'.format(c, test_set_labels[i]))
+        # print('{}\t{}'.format(c, test_set_labels[i]))
         for a in range(len(accuracy_matrix)):
             accuracy_matrix[a][3] += 1  # add true negative to all classes
         if c == test_set_labels[i]:
