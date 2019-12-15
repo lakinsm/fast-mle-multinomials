@@ -306,7 +306,7 @@ def blm_newton_raphson(U, vd, vd1, params, max_steps, gradient_sq_threshold, lea
     return blm_renormalize(params)
 
 
-def blm_newton_raphson2(U, vd, vd1, params, max_steps, delta_eps_threshold, delta_lprob_threshold, verbose=False):
+def blm_newton_raphson2(U, vd, vd1, params, max_steps, delta_eps_threshold, delta_lprob_threshold, label, verbose=False):
     current_lprob = -2e20
     delta_lprob = 2e20
     delta_params = 2e20
@@ -320,7 +320,9 @@ def blm_newton_raphson2(U, vd, vd1, params, max_steps, delta_eps_threshold, delt
         delta_params = np.sum(np.abs(deltas[:-2])) + (deltas[-2] / (deltas[-2] + deltas[-1]))  # See appendix
         params -= deltas
         if verbose:
-            print('Lprob: {}\tDelta Lprob: {}'.format(
+            print('{}\t Step: {}, Lprob: {}\tDelta Lprob: {}'.format(
+                label,
+                step,
                 lprob,
                 delta_lprob
             ))
@@ -328,12 +330,14 @@ def blm_newton_raphson2(U, vd, vd1, params, max_steps, delta_eps_threshold, delt
             print('\tParams: {}'.format(params))
             print('\tDeltas: {}'.format(deltas))
         if np.any(params < 0):
-            print('Negative parameters detected, exiting: {}'.format(
-                params[params < 0]
-            ))
-            sys.exit(1)
-    print('Total steps: {}\n'.format(
-        step
+            params[params < 0] = 1e-20
+            # raise ValueError('Negative parameters detected, exiting: {}'.format(
+            #     params[params < 0]
+            # ))
+    print('BLM MLE Exiting: {}, Total steps: {} / {}\n'.format(
+        label,
+        step,
+        max_steps
     ))
     return blm_renormalize(params)
 

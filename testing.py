@@ -6,7 +6,8 @@ import multi_mle.dm as dm
 import multi_mle.blm as blm
 import multi_mle.gdm as gdm
 import multi_mle.smoothing as sm
-import glob
+import multiprocessing as mp
+import multi_mle.mle_utils as mutils
 # from multi_mle.mle_utils import silent_remove
 
 np.set_printoptions(suppress=True)
@@ -17,65 +18,6 @@ learn_rate_threshold = 2e-10
 delta_lprob_threshold = 1e-5
 max_steps = 15
 batch_size = 1000
-
-
-def load_data(folder):
-    all_datasets = {}
-    pypath = folder.replace('\\\\', '/')
-    for dataset in glob.glob(pypath + '/*'):
-        pydatapath = dataset.replace('\\', '/')
-        dataset = pydatapath.split('/')[-1].split('-')[0]
-        all_datasets.setdefault(dataset, ())
-        with open(pydatapath, 'r') as f:
-            data = f.read().split('\n')
-            for line in data:
-                if not line:
-                    continue
-                truth_label, words = line.split('\t')
-                # if len(words) < 3:  # filter out low quality training observations
-                #     continue
-                all_datasets[dataset] += ((truth_label, words.split()),)
-    return all_datasets
-
-
-def tokenize_train(train, test):
-    train_zipped = tuple(zip(*train))
-    test_zipped = tuple(zip(*test))
-    uniq_values = set([x for y in train_zipped[1] for x in y])
-    uniq_values.add(tuple(x for y in test_zipped[1] for x in y))
-    uniq_keys = set(train_zipped[0])
-    value_idxs = {k: i for i, k in enumerate(uniq_values)}
-    key_idxs = {k: i for i, k in enumerate(uniq_keys)}
-    class_labels = tuple(k for _, k in (sorted(((i, k) for k, i in key_idxs.items()))))
-    key_observed_count = {k: 0 for k in uniq_keys}
-
-    print(key_idxs)
-    print(class_labels)
-
-    tokenized = {k: [np.zeros((train_zipped[0].count(k), len(uniq_values)), dtype=np.int64), {}] for k in uniq_keys}
-    for truth_label, words in train:
-        for w in words:
-            tokenized[truth_label][0][key_observed_count[truth_label], value_idxs[w]] += 1
-        key_observed_count[truth_label] += 1
-    # Remove zero-sum columns (to be reinserted as zeros in the MLE simplex after MLE computation)
-    for k in uniq_keys:
-        nonzero_idx = 0
-        zero_idxs = set()
-        for j in range(len(uniq_values)):
-            if np.sum(tokenized[k][0][:, j]) > 0:
-                tokenized[k][1].setdefault(nonzero_idx, j)
-                nonzero_idx += 1
-            else:
-                zero_idxs.add(j)
-        if zero_idxs:
-            tokenized[k][0] = np.delete(tokenized[k][0], np.array(list(zero_idxs)), axis=1)
-    return tokenized, class_labels, key_idxs, value_idxs
-
-
-def r_zero_inflated_poisson(zero_inflation_prob, poisson_mean, n):
-    non_zero_idxs = np.random.binomial(1, zero_inflation_prob, n)
-    counts = np.random.poisson(poisson_mean, np.sum(non_zero_idxs))
-    return non_zero_idxs > 0, counts
 
 
 def small_test():
@@ -92,13 +34,13 @@ def small_test():
     # Add in random data based on a zero-inflated Poisson distributions
     for j in range(X.shape[1]):
         if j < 2:
-            idxs, draws = r_zero_inflated_poisson(0.8, 50, X.shape[0])
+            idxs, draws = mutils.r_zero_inflated_poisson(0.8, 50, X.shape[0])
             X[idxs, j] += draws
         # elif (j >= 2) and (j < 8):
         #     idxs, draws = r_zero_inflated_poisson(0.2, 5, X.shape[0])
         #     X[idxs, j] += draws
         else:
-            idxs, draws = r_zero_inflated_poisson(0.5, 1, X.shape[0])
+            idxs, draws = mutils.r_zero_inflated_poisson(0.5, 1, X.shape[0])
             X[idxs, j] += draws
 
     U, vd, vd1 = blm.blm_precalc(X)
@@ -122,19 +64,76 @@ def small_test():
 
 
 def smooth_test():
-    train = load_data('/mnt/phd_repositories/fast-mle-multinomials/data/debug/smooth')
-    test = load_data('/mnt/phd_repositories/fast-mle-multinomials/data/debug/smooth')
+    train = mutils.load_data('/mnt/phd_repositories/fast-mle-multinomials/data/debug/smooth')
+    test = mutils.load_data('/mnt/phd_repositories/fast-mle-multinomials/data/debug/smooth')
 
-    X, class_labels, key_idxs, value_idxs = tokenize_train(train['ngram_test.txt'], test['ngram_test.txt'])
+    X, class_labels, key_idxs, value_idxs = mutils.tokenize_train(train['ngram_test.txt'], test['ngram_test.txt'])
     simplex_matrix = np.zeros((len(value_idxs), len(class_labels)), dtype=np.float64)
     for i, c in enumerate(class_labels):
         class_simplex = np.squeeze(np.sum(X[c][0], axis=0))
         class_simplex = class_simplex / np.sum(class_simplex)
         for j, p in enumerate(class_simplex):
             simplex_matrix[X[c][1][j], i] = p
-    print(simplex_matrix)
-    print(sm.two_step_smoothing(simplex_matrix, X, class_labels))
+    smoothed = sm.lidstone_smoothing(simplex_matrix, X, class_labels)
+    print(smoothed)
+    print(np.sum(smoothed, axis=0))
+
+
+def mp_test():
+    train = mutils.load_data('/mnt/phd_repositories/fast-mle-multinomials/data/smooth/train/')
+    test = mutils.load_data('/mnt/phd_repositories/fast-mle-multinomials/data/debug/test/')
+
+    X, class_labels, key_idxs, value_idxs = mutils.tokenize_train(train['cade'], test['cade'])
+    simplex_matrix = np.zeros((len(value_idxs), len(class_labels)), dtype=np.float64)
+
+    engine = mutils.MLEngine(max_steps, delta_eps_threshold, delta_lprob_threshold, '/mnt/temp/pkl', True)
+    filepaths = engine.multi_pickle_dump((X[c][0], c) for c in class_labels)
+
+    pool = mp.Pool(10)
+    try:
+        outputs = pool.map(engine.dm_mle_parallel, filepaths)
+        for class_simplex, label in outputs:
+            for j, p in enumerate(class_simplex):
+                simplex_matrix[X[label][1][j], key_idxs[label]] = p
+        print(simplex_matrix)
+    finally:
+        pool.close()
+        pool.join()
+
+
+def mp_test2():
+    engine = mutils.MLEngine(max_steps, delta_eps_threshold, delta_lprob_threshold, '/mnt/temp/mle', 'cade', True)
+    test = None
+    if engine.count_files_exist:
+        X, class_labels, key_idxs, value_idxs = engine.load_count_files()
+    else:
+        train = mutils.load_data('/mnt/phd_repositories/fast-mle-multinomials/data/debug/train/')
+        test = mutils.load_data('/mnt/phd_repositories/fast-mle-multinomials/data/debug/test/')
+        X, class_labels, key_idxs, value_idxs = mutils.tokenize_train(train['cade'], test['cade'])
+        engine.write_count_files((X, class_labels, key_idxs, value_idxs))
+
+    filepaths = engine.multi_pickle_dump((X[c], c) for c in class_labels)
+    pool = mp.Pool(np.min((10, len(class_labels))))
+    try:
+        outputs = pool.map(engine.dm_mle_parallel, filepaths)
+    finally:
+        pool.close()
+        pool.join()
+
+    mle_results = engine.load_mle_results(outputs)
+    simplex_matrix = np.zeros((len(value_idxs), len(class_labels)), dtype=np.float64)
+    for label, simplex in mle_results:
+        simplex_matrix[:, key_idxs[label]] = simplex
+
+    if not test:
+        test = mutils.load_data('/mnt/phd_repositories/fast-mle-multinomials/data/debug/test/')
+
+    smoothed = sm.lidstone_smoothing(simplex_matrix, X, class_labels)
+
+    mutils.output_results_naive_bayes(smoothed, test['cade'], class_labels, key_idxs, value_idxs,
+                                      'cade', 'DM', 'Lidstone', 'n=1', '/mnt/temp/my_results.txt', batch_size)
+
 
 
 if __name__ == '__main__':
-    smooth_test()
+    mp_test2()

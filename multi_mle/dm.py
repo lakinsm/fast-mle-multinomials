@@ -213,7 +213,7 @@ def dm_newton_raphson(U, v, params, max_steps, gradient_sq_threshold, learn_rate
     return dm_renormalize(params)
 
 
-def dm_newton_raphson2(U, vd, params, max_steps, delta_eps_threshold, delta_lprob_threshold, verbose=False):
+def dm_newton_raphson2(U, vd, params, max_steps, delta_eps_threshold, delta_lprob_threshold, label, verbose=False):
     current_lprob = -2e20
     delta_lprob = 2e20
     delta_params = 2e20
@@ -227,7 +227,9 @@ def dm_newton_raphson2(U, vd, params, max_steps, delta_eps_threshold, delta_lpro
         delta_params = np.sum(np.abs(deltas)) # See appendix
         params -= deltas
         if verbose:
-            print('Lprob: {}\tDelta Lprob: {}'.format(
+            print('{}\t Step: {}, Lprob: {}\tDelta Lprob: {}'.format(
+                label,
+                step,
                 lprob,
                 delta_lprob
             ))
@@ -235,12 +237,14 @@ def dm_newton_raphson2(U, vd, params, max_steps, delta_eps_threshold, delta_lpro
             print('\tParams: {}'.format(params))
             print('\tDeltas: {}'.format(deltas))
         if np.any(params < 0):
-            print('Negative parameters detected, exiting: {}'.format(
-                params[params < 0]
-            ))
-            sys.exit(1)
-    print('Total steps: {}\n'.format(
-        step
+            params[params < 0] = 1e-20
+            # raise ValueError('Negative parameters detected, exiting: {}'.format(
+            #     params[params < 0]
+            # ))
+    print('DM MLE Exiting: {}, Total steps: {} / {}\n'.format(
+        label,
+        step,
+        max_steps
     ))
     return dm_renormalize(params)
 
