@@ -16,7 +16,7 @@ def lidstone_smoothing(S, X, class_labels, n=1):
         class_counts = np.squeeze(np.sum(X[c][0], axis=0))
         S_copy[:, i] += float(n) / ((n * S_copy.shape[0]) + np.sum(class_counts))
         S_copy[:, i] /= np.sum(S_copy[:, i])
-    return np.log(S)
+    return np.log(S_copy)
 
 
 def lidstone_smoothing2(S, X, class_labels, n=1):
