@@ -36,6 +36,9 @@ def test_accuracy(distribution, train_path, test_path, dataset_name, result_file
         for i, c in enumerate(class_labels):
             class_simplex = np.squeeze(np.sum(X[c][0], axis=0))
             class_simplex = class_simplex / np.sum(class_simplex)
+            # X[c][1] stores a dictionary/map of non-zero feature idx to the corresponding feature idx
+            # with zero-sum columns included.  The simplex_matrix below is dim (features, classes), while
+            # the count matrix exists for each class, dim (observations, features).
             for j, p in enumerate(class_simplex):
                 simplex_matrix[X[c][1][j], i] = p
     else:
@@ -63,6 +66,7 @@ def test_accuracy(distribution, train_path, test_path, dataset_name, result_file
             pool.join()
 
         mle_results = engine.load_mle_results(outputs)
+        assert(len(mle_results) == len(class_labels))
         simplex_matrix = np.zeros((len(value_idxs), len(class_labels)), dtype=np.float64)
         for label, simplex in mle_results:
             simplex_matrix[:, key_idxs[label]] = simplex

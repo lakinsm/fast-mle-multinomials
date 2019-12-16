@@ -52,7 +52,7 @@ class MLEngine(object):
             for path in filepaths:
                 with open(path, 'rb') as infile:
                     count_data.append(pickle.load(infile))
-            return count_data
+        return count_data
 
     def write_count_files(self, data_vector):
         """
@@ -95,7 +95,7 @@ class MLEngine(object):
     def dm_mle_parallel(self, filepath):
         """
         Execute the Dirichlet Multinomial MLE in parallel across classes.
-        :param filepath: String, full path to the pickled file from multi_pickle_dump()
+        :param filepath: String, full path to the pickled count matrix from multi_pickle_dump()
         """
         try:
             label = filepath.split('/')[-1].replace('.pickle', '')
@@ -115,7 +115,7 @@ class MLEngine(object):
                                         label,
                                         self.verbose)
             class_simplex = dm.dm_renormalize(mle)
-            expanded_simplex = np.zeros((X[2],), dtype=np.float64)
+            expanded_simplex = np.zeros(X[2], dtype=np.float64)
             for i, val in enumerate(class_simplex):
                 expanded_simplex[X[1][i]] = val
             with open(this_path, 'wb') as out:
@@ -147,7 +147,7 @@ class MLEngine(object):
                                           label,
                                           self.verbose)
             class_simplex = blm.blm_renormalize(mle)
-            expanded_simplex = np.zeros((X[2],), dtype=np.float64)
+            expanded_simplex = np.zeros(X[2], dtype=np.float64)
             for i, val in enumerate(class_simplex):
                 expanded_simplex[X[1][i]] = val
             with open(this_path, 'wb') as out:
@@ -214,38 +214,41 @@ def tokenize_train(train, test):
     uniq_values = set([x for y in train_zipped[1] for x in y])
     uniq_values.update(set([x for y in test_zipped[1] for x in y]))
     uniq_keys = set(train_zipped[0])
-    value_idxs = {k: i for i, k in enumerate(uniq_values)}
-    key_idxs = {k: i for i, k in enumerate(uniq_keys)}
+    value_idxs = {k: i for i, k in enumerate(sorted(list(uniq_values)))}
+    key_idxs = {k: i for i, k in enumerate(sorted(list(uniq_keys)))}
     class_labels = tuple(k for _, k in (sorted(((i, k) for k, i in key_idxs.items()))))
     key_observed_count = {k: 0 for k in uniq_keys}
 
     print(key_idxs)
     print(class_labels)
 
-    tokenized = {k: [np.zeros((train_zipped[0].count(k), len(uniq_values)), dtype=np.int64), {}, len(uniq_values)] for k in uniq_keys}
+    tokenized = {k: [np.zeros((train_zipped[0].count(k), len(uniq_values)), dtype=np.int64), {}, len(uniq_values)] for k
+                 in uniq_keys}
     for truth_label, words in train:
+        observation_idx = key_observed_count[truth_label]
         for w in words:
-            tokenized[truth_label][0][key_observed_count[truth_label], value_idxs[w]] += 1
+            tokenized[truth_label][0][observation_idx, value_idxs[w]] += 1
         key_observed_count[truth_label] += 1
+
     # Remove zero-sum columns (to be reinserted as zeros in the MLE simplex after MLE computation)
     for k in uniq_keys:
         nonzero_idx = 0
-        zero_idxs = set()
+        zero_idxs = ()
         feature_sums = np.sum(tokenized[k][0], axis=0)
         for j in range(len(uniq_values)):
             if feature_sums[j] > 0:
                 tokenized[k][1].setdefault(nonzero_idx, j)
                 nonzero_idx += 1
             else:
-                zero_idxs.add(j)
+                zero_idxs += (j,)
         if zero_idxs:
-            tokenized[k][0] = np.delete(tokenized[k][0], np.array(list(zero_idxs)), axis=1)
+            tokenized[k][0] = np.delete(tokenized[k][0], np.array(zero_idxs), axis=1)
     return tokenized, class_labels, key_idxs, value_idxs
 
 
 def tokenize_test(observation, value_idxs):
     truth_label = observation[0]
-    tokenized = np.zeros(len(value_idxs))
+    tokenized = np.zeros(len(value_idxs), dtype=np.float64)
     for w in observation[1]:
         # if w not in value_idxs:
         #     continue
@@ -259,7 +262,8 @@ def r_zero_inflated_poisson(zero_inflation_prob, poisson_mean, n):
     return non_zero_idxs > 0, counts
 
 
-def compute_naive_bayes(Query_matrix, Training_matrix, test_set_labels, class_training_labels, key_idxs, accuracy_matrix):
+def compute_naive_bayes(Query_matrix, Training_matrix, test_set_labels, class_training_labels, key_idxs,
+                        accuracy_matrix):
     classifications = [class_training_labels[c] for c in np.argmax(np.matmul(Query_matrix, Training_matrix), axis=1)]
     for i, c in enumerate(classifications):
         # print('{}\t{}'.format(c, test_set_labels[i]))
@@ -284,7 +288,7 @@ def output_results_naive_bayes(smoothed_matrix, test, class_labels, key_idxs, va
             ndim = batch_size
         else:
             ndim = len(test) - observations_processed
-        observed_matrix = np.zeros((ndim, len(value_idxs)), dtype=np.int64)
+        observed_matrix = np.zeros((ndim, len(value_idxs)), dtype=np.float64)
         observed_labels = ()
 
         for i in range(0, ndim):
@@ -302,7 +306,6 @@ def output_results_naive_bayes(smoothed_matrix, test, class_labels, key_idxs, va
             observations_processed,
             len(test)
         ))
-
 
     tp = 0
     fp = 0
@@ -322,12 +325,12 @@ def output_results_naive_bayes(smoothed_matrix, test, class_labels, key_idxs, va
           'NPV: {}\n'
           'Accuracy: {}\n'
           'F1: {}'.format(
-                    round(100*recall, 2),
-                    round(100*float(tn) / (tn + fp), 2),
-                    round(100*precision, 2),
-                    round(100*float(tn) / (tn + fn)),
-                    round(100*float(tp + tn) / (tp + fp + tn + fn), 2),
-                    round(100*float((2 * precision * recall) / (precision + recall)), 2)
+                    round(100 * recall, 2),
+                    round(100 * float(tn) / (tn + fp), 2),
+                    round(100 * precision, 2),
+                    round(100 * float(tn) / (tn + fn)),
+                    round(100 * float(tp + tn) / (tp + fp + tn + fn), 2),
+                    round(100 * float((2 * precision * recall) / (precision + recall)), 2)
     ))
     print('\n')
 
