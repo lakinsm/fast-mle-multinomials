@@ -4,7 +4,7 @@ library(gridExtra)
 
 setwd('/mnt/phd_repositories/fast-mle-multinomials/analytic_data/')
 
-dat = data.table(read.csv('2019Dec15_mle.txt', header=F))
+dat = data.table(read.csv('2020Jan20_mle.txt', header=F))
 colnames(dat) = c('DataSet', 'MLEMethod', 'SmoothingMethod', 'ParamString',
                   'Class', 'TruePositives', 'FalsePositives', 'FalseNegatives',
                   'TrueNegatives')

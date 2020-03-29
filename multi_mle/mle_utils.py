@@ -7,16 +7,26 @@ from multi_mle import gdm
 import pickle
 import os
 import traceback
+from scipy.special import gamma
+import sys
 
 
 class MLEngine(object):
-    def __init__(self, max_steps, delta_eps_threshold, delta_lprob_threshold, temp_dir, dataset, verbose=False):
+    def __init__(self,
+                 max_steps,
+                 delta_eps_threshold,
+                 delta_lprob_threshold,
+                 temp_dir,
+                 dataset,
+                 posterior_method=None,
+                 verbose=False):
         # User defined parameters
         self.max_steps = max_steps
         self.delta_eps_threshold = delta_eps_threshold
         self.delta_lprob_threshold = delta_lprob_threshold
         self.temp_dir = temp_dir
         self.dataset = dataset
+        self.posterior_method = posterior_method
         self.verbose = verbose
 
         # Determine which jobs may need to be computed based on provided temp_dir
@@ -39,8 +49,12 @@ class MLEngine(object):
             os.mkdir('{}/{}/dm'.format(self.temp_dir, self.dataset))
         if not os.path.isdir('{}/{}/blm'.format(self.temp_dir, self.dataset)):
             os.mkdir('{}/{}/blm'.format(self.temp_dir, self.dataset))
+        if not os.path.isdir('{}/{}/blm/{}'.format(self.temp_dir, self.dataset, self.posterior_method)):
+            os.mkdir('{}/{}/blm/{}'.format(self.temp_dir, self.dataset, self.posterior_method))
         if not os.path.isdir('{}/{}/gdm'.format(self.temp_dir, self.dataset)):
             os.mkdir('{}/{}/gdm'.format(self.temp_dir, self.dataset))
+        if not os.path.isdir('{}/{}/gdm/{}'.format(self.temp_dir, self.dataset, self.posterior_method)):
+            os.mkdir('{}/{}/gdm/{}'.format(self.temp_dir, self.dataset, self.posterior_method))
         if not os.path.isdir('{}/{}/matrices'.format(self.temp_dir, self.dataset)):
             os.mkdir('{}/{}/matrices'.format(self.temp_dir, self.dataset))
 
@@ -131,7 +145,7 @@ class MLEngine(object):
         """
         try:
             label = filepath.split('/')[-1].replace('.pickle', '')
-            this_path = '{}/{}/blm/{}.pickle'.format(self.temp_dir, self.dataset, label)
+            this_path = '{}/{}/blm/{}/{}.pickle'.format(self.temp_dir, self.dataset, self.posterior_method, label)
             if os.path.exists(this_path):
                 return this_path
 
@@ -146,10 +160,22 @@ class MLEngine(object):
                                           self.delta_lprob_threshold,
                                           label,
                                           self.verbose)
-            class_simplex = blm.blm_renormalize(mle)
-            expanded_simplex = np.zeros(X[2], dtype=np.float64)
-            for i, val in enumerate(class_simplex):
-                expanded_simplex[X[1][i]] = val
+            class_simplex = None
+            expanded_simplex = None
+            if not self.posterior_method:
+                class_simplex = blm.blm_renormalize(mle)
+            elif self.posterior_method == 'empirical':
+                class_simplex = blm.blm_renormalize_empirical(mle, np.sum(X[0], axis=0))
+            elif self.posterior_method == 'aposteriori':
+                expanded_simplex = np.zeros(X[2]+1, dtype=np.float64)
+                for i, val in enumerate(mle[:-1]):
+                    expanded_simplex[X[1][i]] = val
+                expanded_simplex[-1] = mle[-1]
+
+            if not self.posterior_method == 'aposteriori':
+                expanded_simplex = np.zeros(X[2], dtype=np.float64)
+                for i, val in enumerate(class_simplex):
+                    expanded_simplex[X[1][i]] = val
             with open(this_path, 'wb') as out:
                 pickle.dump(expanded_simplex, out)
             return this_path
@@ -263,8 +289,51 @@ def r_zero_inflated_poisson(zero_inflation_prob, poisson_mean, n):
 
 
 def compute_naive_bayes(Query_matrix, Training_matrix, test_set_labels, class_training_labels, key_idxs,
-                        accuracy_matrix):
-    classifications = [class_training_labels[c] for c in np.argmax(np.matmul(Query_matrix, Training_matrix), axis=1)]
+                        accuracy_matrix, posterior_method):
+    classifications = None
+    if posterior_method == 'aposteriori':
+        marginal_probabilities = np.zeros((Query_matrix.shape[0], Training_matrix.shape[1]), dtype=np.float64)
+        training_feature_sums = np.sum(Training_matrix, axis=1)
+
+        # Find where the beta parameter lies and reorder the vectors such that the beta parameters are terminal
+        beta_idx = None
+        for i in range(len(training_feature_sums)-2, -1, -1):
+            if training_feature_sums[i] > 0:
+                beta_idx = i
+                break
+
+        Query_matrix = Query_matrix + 1  # Lidstone smoothing for a posteriori
+        for observation in range(Query_matrix.shape[0]):
+            for label in range(Training_matrix.shape[1]):
+                if beta_idx < (Query_matrix.shape[1] - 1):
+                    query_vec = np.concatenate((Query_matrix[observation, :beta_idx],
+                                                Query_matrix[observation, (beta_idx+1):-1]))
+                    query_vec = np.append(query_vec, Query_matrix[observation, beta_idx])
+                    query_vec = np.append(query_vec, Query_matrix[observation, -1])
+                else:
+                    query_vec = Query_matrix[observation, :]
+                train_vec = np.concatenate((Training_matrix[:beta_idx, label],
+                                            Training_matrix[(beta_idx+1):-1, label]))
+                train_vec = np.append(train_vec, Training_matrix[beta_idx, label])
+                train_vec = np.append(train_vec, Training_matrix[-1, label])
+
+                # Calculate the marginal probability of this query vector against each class in training matrix
+                print(np.sum(query_vec), np.prod(gamma(1 + query_vec)))
+                sys.exit()
+                term1 = gamma((1 + np.sum(query_vec))) / np.prod(gamma(1 + query_vec))
+                term2 = gamma(np.sum(train_vec[:-2])) / gamma(np.sum(train_vec[:-2] + query_vec[:-1]))
+                term3 = gamma(train_vec[-1] + train_vec[-2]) / gamma(train_vec[-2] + train_vec[-1] + np.sum(query_vec))
+                term4 = gamma(train_vec[-1] + np.sum(query_vec[:-1])) / gamma(train_vec[-1])
+                term5 = gamma(train_vec[-2] + query_vec[-1]) / gamma(train_vec[-2])
+                term6 = np.prod(gamma(train_vec[:-2] + query_vec[:-1])) / np.prod(gamma(train_vec[:-2]))
+                print(term1, term2, term3, term4, term5, term6)
+                prob = np.prod((term1, term2, term3, term4, term5, term6))
+                print(prob)
+                marginal_probabilities[observation, label] = prob
+
+                classifications = [class_training_labels[c] for c in np.argmax(marginal_probabilities, axis=1)]
+    else:
+        classifications = [class_training_labels[c] for c in np.argmax(np.matmul(Query_matrix, Training_matrix), axis=1)]
     for i, c in enumerate(classifications):
         # print('{}\t{}'.format(c, test_set_labels[i]))
         for a in range(len(accuracy_matrix)):
@@ -280,7 +349,8 @@ def compute_naive_bayes(Query_matrix, Training_matrix, test_set_labels, class_tr
 
 
 def output_results_naive_bayes(smoothed_matrix, test, class_labels, key_idxs, value_idxs, dataset_name,
-                               distribution, smoothing_method, param_string, result_file, batch_size=1000):
+                               distribution, smoothing_method, param_string, result_file, posterior_method,
+                               batch_size=1000):
     accuracy_matrix = [[0, 0, 0, 0] for _ in class_labels]
     observations_processed = 0
     while observations_processed < len(test):
@@ -296,7 +366,7 @@ def output_results_naive_bayes(smoothed_matrix, test, class_labels, key_idxs, va
             observed_labels += (truth_label,)
 
         accuracy_matrix = compute_naive_bayes(observed_matrix, smoothed_matrix, observed_labels, class_labels,
-                                              key_idxs, accuracy_matrix)
+                                              key_idxs, accuracy_matrix, posterior_method)
         observations_processed += ndim
         print("{}, {}, {}, {}\tObservations processed: {} / {}".format(
             dataset_name,
@@ -336,8 +406,9 @@ def output_results_naive_bayes(smoothed_matrix, test, class_labels, key_idxs, va
 
     with open(result_file, 'a') as out:
         for c in range(len(accuracy_matrix)):
-            out.write('{},{},{},{},{},{}\n'.format(
+            out.write('{},{},{},{},{},{},{}\n'.format(
                 dataset_name,
+                posterior_method,
                 distribution,
                 smoothing_method,
                 param_string,

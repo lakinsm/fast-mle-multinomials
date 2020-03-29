@@ -13,11 +13,15 @@ import multi_mle.mle_utils as mutils
 np.set_printoptions(suppress=True)
 np.random.seed(2718)
 
+# MLE/NB params
 delta_eps_threshold = 1e-5
 learn_rate_threshold = 2e-10
 delta_lprob_threshold = 1e-5
 max_steps = 15
 batch_size = 1000
+
+# Smoothing params
+smoothing_methods = ('lidstone',)
 
 
 def small_test():
@@ -153,6 +157,110 @@ def nb_test():
                                       'cade', 'BLM', 'Lidstone', param_string, '/mnt/temp/my_results.txt', batch_size)
 
 
+def test_accuracy(distribution, train_path, test_path, dataset_name, result_file, temp_dir, posterior_method=None):
+    simplex_matrix, test, X, class_labels, smoothed, key_idxs, value_idxs = (None,) * 7
+
+    if distribution == 'pooledDM':
+        train = mutils.load_data(train_path)
+        test = mutils.load_data(test_path)
+        X, class_labels, key_idxs, value_idxs = mutils.tokenize_train(train[dataset_name], test[dataset_name])
+
+        simplex_matrix = np.zeros((len(value_idxs), len(class_labels)), dtype=np.float64)
+        for i, c in enumerate(class_labels):
+            class_simplex = np.squeeze(np.sum(X[c][0], axis=0))
+            class_simplex = class_simplex / np.sum(class_simplex)
+            # X[c][1] stores a dictionary/map of non-zero feature idx to the corresponding feature idx
+            # with zero-sum columns included.  The simplex_matrix below is dim (features, classes), while
+            # the count matrix exists for each class, dim (observations, features).
+            for j, p in enumerate(class_simplex):
+                simplex_matrix[X[c][1][j], i] = p
+    else:
+        engine = mutils.MLEngine(max_steps, delta_eps_threshold, delta_lprob_threshold, temp_dir, dataset_name,
+                                 posterior_method, True)
+        if engine.count_files_exist:
+            X, class_labels, key_idxs, value_idxs = engine.load_count_files()
+        else:
+            train = mutils.load_data(train_path)
+            test = mutils.load_data(test_path)
+            X, class_labels, key_idxs, value_idxs = mutils.tokenize_train(train[dataset_name], test[dataset_name])
+            engine.write_count_files((X, class_labels, key_idxs, value_idxs))
+
+        filepaths = engine.multi_pickle_dump((X[c], c) for c in class_labels)
+        pool = mp.Pool(np.min((15, len(class_labels))))
+        outputs = None
+        try:
+            if distribution == 'DM':
+                outputs = pool.map(engine.dm_mle_parallel, filepaths)
+            elif distribution == 'BLM':
+                outputs = pool.map(engine.blm_mle_parallel, filepaths)
+            elif distribution == 'GDM':
+                pass  # TODO: Implement
+        finally:
+            pool.close()
+            pool.join()
+
+        mle_results = engine.load_mle_results(outputs)
+        assert(len(mle_results) == len(class_labels))
+        if posterior_method == 'aposteriori':
+            simplex_matrix = np.zeros((len(value_idxs)+1, len(class_labels)), dtype=np.float64)  # for BLM only atm
+        else:
+            simplex_matrix = np.zeros((len(value_idxs), len(class_labels)), dtype=np.float64)
+        for label, simplex in mle_results:
+            simplex_matrix[:, key_idxs[label]] = simplex
+
+    if not test:
+        test = mutils.load_data(test_path)
+
+    if not posterior_method:
+        smoothed = sm.lidstone_smoothing(simplex_matrix, X, class_labels)
+    else:
+        smoothed = simplex_matrix
+    param_string = 'n=1'
+    mutils.output_results_naive_bayes(smoothed, test[dataset_name], class_labels, key_idxs, value_idxs,
+                                      dataset_name, distribution, 'Lidstone', param_string, result_file,
+                                      posterior_method, batch_size)
+
+
+def parameter_estimation_test():
+    # Standard MAP MLE Mode for PooledDM, DM, and BLM
+    test_accuracy(distribution='pooledDM',
+                  train_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/train/',
+                  test_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/test/',
+                  dataset_name='r8',
+                  result_file='/mnt/temp/parameter_estimation_test.txt',
+                  temp_dir='/mnt/temp/2020Jan13_mle')
+
+    test_accuracy(distribution='DM',
+                  train_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/train/',
+                  test_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/test/',
+                  dataset_name='r8',
+                  result_file='/mnt/temp/parameter_estimation_test.txt',
+                  temp_dir='/mnt/temp/2020Jan13_mle')
+
+    test_accuracy(distribution='BLM',
+                  train_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/train/',
+                  test_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/test/',
+                  dataset_name='r8',
+                  result_file='/mnt/temp/parameter_estimation_test.txt',
+                  temp_dir='/mnt/temp/2020Jan13_mle')
+
+    # Empirical Bayes Mode for BLM
+    test_accuracy(distribution='BLM',
+                  train_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/train/',
+                  test_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/test/',
+                  dataset_name='r8',
+                  result_file='/mnt/temp/parameter_estimation_test.txt',
+                  temp_dir='/mnt/temp/2020Jan20_mle',
+                  posterior_method='empirical')
+
+    # test_accuracy(distribution='BLM',
+    #               train_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/train/',
+    #               test_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/test/',
+    #               dataset_name='cade',
+    #               result_file='/mnt/temp/parameter_estimation_test.txt',
+    #               temp_dir='/mnt/temp/2020Jan13_mle',
+    #               posterior_method='aposteriori')
+
 
 if __name__ == '__main__':
-    nb_test()
+    parameter_estimation_test()

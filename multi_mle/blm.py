@@ -210,11 +210,26 @@ def blm_step(h, g, c):
 def blm_renormalize(theta):
     """
     Normalize the estimates for p_d to the unit simplex according to the mean of the BL for parameter p_d.
-    :param theta: Vector of BLM parameters as output from MLE estimation, length D+2
+    :param theta: Vector of BLM parameters as output from MLE, length D+2
     :return: Normalized parameters on the simplex, length D+1
     """
     d_params = (theta[-1] / (theta[-1] + theta[-2])) * (theta[:-2] / np.sum(theta[:-2]))
     return np.append(d_params, theta[-2] / (theta[-2] + theta[-1]))
+
+
+def blm_renormalize_empirical(theta, x):
+    """
+    Calculate parameter estimates for p_d to the unit simplex according to the posterior of the BL for parameter p_d.
+    This differs from the above, since we are using the training data to both estimate the maximum likelihood AND to
+    inform the posterior parameters, a la empirical Bayes.  The above, regular method only uses the MLE to inform the
+    parameters.
+    :param theta: Vector of BLM parameters are output from MLE, length D+2
+    :param x: Vector of count data summed across all observations used as input to the MLE, dimension (1, D+1)
+    :return: Empirically informed parameter estimates on the simplex, length D+1
+    """
+    beta_term = (theta[-1] + np.sum(x[:-1])) / (theta[-1] + theta[-2] + np.sum(x))
+    dirichlet_numerator = theta[:-2] + x[:-1]
+    return beta_term * (dirichlet_numerator / np.sum(dirichlet_numerator))
 
 
 def blm_extract_generating_params(theta):
@@ -339,7 +354,7 @@ def blm_newton_raphson2(U, vd, vd1, params, max_steps, delta_eps_threshold, delt
         step,
         max_steps
     ))
-    return blm_renormalize(params)
+    return params
 
 
 if __name__ == '__main__':

@@ -246,7 +246,7 @@ def dm_newton_raphson2(U, vd, params, max_steps, delta_eps_threshold, delta_lpro
         step,
         max_steps
     ))
-    return dm_renormalize(params)
+    return params
 
 
 if __name__ == '__main__':
