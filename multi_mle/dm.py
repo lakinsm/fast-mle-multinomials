@@ -89,6 +89,25 @@ def dm_hessian_precompute(U, v, theta):
     return gradient, h_diag, constant, lprob
 
 
+# def dm_hessian_precompute_approximate(U, v, theta):
+#     """
+#     Precompute the gradient, Hessian diagonal, hessian constant, and log-likelihood log(P(X | theta))
+#     :param U: Precalculated matrix U from dm_precalc, dimension (D, Z_D)
+#     :param v: Precalculated vector v from dm_precalc, length z_sumD
+#     :param theta: Parameter vector of length D
+#     :return: gradient vector, Hessian diagonal vector, scalar constant, and scalar log-likelihood
+#     """
+#     theta = np.squeeze(theta)
+#     D = len(U)
+#     gradient = np.zeros(D, np.float64)
+#     h_diag = np.zeros(D, np.float64)
+#     constant = 0
+#     sum_theta = np.sum(theta)
+#     for d in range(D):
+#
+#     return gradient, h_diag, constant
+
+
 def dm_log_likelihood_fast(U, v, theta):
     """
     Compute only the proportional log-likelihood (terms dependent only on parameters considered).

@@ -6,8 +6,9 @@ from multi_mle import blm
 from multi_mle import gdm
 import pickle
 import os
-import traceback
+from bisect import bisect_left
 from scipy.special import gamma
+from scipy.interpolate import interp1d
 import sys
 
 
@@ -415,3 +416,60 @@ def output_results_naive_bayes(smoothed_matrix, test, class_labels, key_idxs, va
                 class_labels[c],
                 ','.join([str(x) for x in accuracy_matrix[c]])
             ))
+
+
+def load_geom_lookup_table(filepath):
+    ret = {}
+    with open(filepath, 'r') as f:
+        line = f.readline()
+        while line:
+            param, *vals = tuple(float(x) for x in line.rstrip(',\n').split(','))
+            ret[param] = vals
+            line = f.readline()
+    return ret, sorted(ret.keys())
+
+
+def approx_geom_limit(theta, n, lookup_table, sorted_keys):
+    val = 1 / theta
+    if n == 0:
+        return val
+    n_idx = n - 1
+    if theta < sorted_keys[0]:
+        val += np.pi / 6  # limit of the standard Geometric series
+    elif theta > sorted_keys[-1]:
+        pass  # limit evaluates to zero
+    else:
+        param_spline_vals = []
+        i = bisect_left(sorted_keys, theta)
+        if i < 3:
+            param_spline_vals = sorted_keys[:5]
+        elif i > (len(sorted_keys) - 4):
+            param_spline_vals = sorted_keys[-5:]
+        limit_spline_vals = []
+        for p in param_spline_vals:
+            if n > len(lookup_table[p]):
+                limit_spline_vals.append(lookup_table[p][:-1])
+            else:
+                limit_spline_vals.append(lookup_table[p][n_idx])
+        spl = interp1d(np.log(param_spline_vals), limit_spline_vals, kind='cubic')
+        val += spl(np.log(theta))
+        return val
+
+
+def exact_geom_limit(theta, n):
+    return np.sum(np.power(theta + np.array(range(n+1)), -1))
+
+
+def approx_harmonic_limit(theta, n):
+    value = 1 / theta  # zero index
+    asymp = (np.log(n) + 0.57721 + (1 / (2 * n)) - (1 / (12 * (n ** 2))))
+    scale = 0.072 * (np.log(n) ** 1.27) + (0.1677 / (1 + np.log(n))) + 0.835
+    xmid = 0.5 * np.log(n) - 0.2718
+    A = 0.1068 * (np.log(n) ** 0.8224) + (4.986 / (6.408 + np.log(n))) - 0.7751
+    v = 3.764 * np.exp((-np.pi / 6) * (np.log(n) + 1) ** 1.06) + 1.59
+    value += (asymp / (1 + np.exp((np.log(theta) - xmid) / scale))) + \
+            (A * np.cos(4 * ((np.pi / 2) + (-np.pi / (1 + np.exp((np.log(theta) - xmid) / (v * scale))))) - (np.pi / 2)))
+    return value if value > 0 else 0
+
+
+
