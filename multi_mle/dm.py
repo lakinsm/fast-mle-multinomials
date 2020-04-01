@@ -1,5 +1,6 @@
 import numpy as np
 import sys
+import multi_mle.mle_utils as mutils
 
 
 def dm_precalc(X):
@@ -89,23 +90,66 @@ def dm_hessian_precompute(U, v, theta):
     return gradient, h_diag, constant, lprob
 
 
-# def dm_hessian_precompute_approximate(U, v, theta):
-#     """
-#     Precompute the gradient, Hessian diagonal, hessian constant, and log-likelihood log(P(X | theta))
-#     :param U: Precalculated matrix U from dm_precalc, dimension (D, Z_D)
-#     :param v: Precalculated vector v from dm_precalc, length z_sumD
-#     :param theta: Parameter vector of length D
-#     :return: gradient vector, Hessian diagonal vector, scalar constant, and scalar log-likelihood
-#     """
-#     theta = np.squeeze(theta)
-#     D = len(U)
-#     gradient = np.zeros(D, np.float64)
-#     h_diag = np.zeros(D, np.float64)
-#     constant = 0
-#     sum_theta = np.sum(theta)
-#     for d in range(D):
-#
-#     return gradient, h_diag, constant
+def dm_hessian_precompute_exact_vectorized(X, theta):
+    """
+    Instead of Sklar's implementation, utilize the original likelihood function but vectorize the finite sums.
+    :param X: Data matrix of counts, dimension (N, D)
+    :param theta: Parameter vector of length D
+    :return: gradient vector, Hessian diagonal vector, scalar constant,  scalar log-likelihood
+    """
+    theta = np.squeeze(theta)
+    N, D = X.shape
+    gradient = np.zeros(D, np.float64)
+    h_diag = np.zeros(D, np.float64)
+    constant = 0
+    lprob = 0
+    sum_theta = np.sum(theta)
+    rowsums = np.sum(X, axis=1)
+    for n in range(N):
+        for d in range(D):
+            if X[n, d] == 0:
+                continue
+            value_summation_stop = X[n, d] - 1
+            lprob += mutils.exact_log_limit(theta[d], value_summation_stop)
+            gradient[d] += mutils.exact_harmonic_limit(theta[d], value_summation_stop)
+            h_diag[d] -= mutils.exact_geom_limit(theta[d], value_summation_stop)
+        # Note the following are broadcast to the whole array
+        row_summation_stop = rowsums[n] - 1
+        lprob -= mutils.exact_log_limit(sum_theta, row_summation_stop)
+        gradient -= mutils.exact_harmonic_limit(sum_theta, row_summation_stop)
+        constant += mutils.exact_geom_limit(sum_theta, row_summation_stop)
+    return gradient, h_diag, constant, lprob
+
+
+def dm_hessian_precompute_approximate(X, theta):
+    """
+    Instead of Sklar's implementation, utilize the original likelihood function but approximate the finite sums.
+    :param X: Data matrix of counts, dimension (N, D)
+    :param theta: Parameter vector of length D
+    :return: gradient vector, Hessian diagonal vector, scalar constant, scalar log-likelihood
+    """
+    theta = np.squeeze(theta)
+    N, D = X.shape
+    gradient = np.zeros(D, np.float64)
+    h_diag = np.zeros(D, np.float64)
+    constant = 0
+    lprob = 0
+    sum_theta = np.sum(theta)
+    rowsums = np.sum(X, axis=1)
+    for n in range(N):
+        for d in range(D):
+            if X[n, d] == 0:
+                continue
+            value_summation_stop = X[n, d] - 1
+            lprob += mutils.exact_log_limit(theta[d], value_summation_stop)
+            gradient[d] += mutils.approx_harmonic_limit(theta[d], value_summation_stop)
+            h_diag[d] -= mutils.approx_geom_limit(theta[d], value_summation_stop)
+        # Note the following are broadcast to the whole array
+        row_summation_stop = rowsums[n] - 1
+        lprob -= mutils.exact_log_limit(sum_theta, row_summation_stop)
+        gradient -= mutils.approx_harmonic_limit(sum_theta, row_summation_stop)
+        constant += mutils.approx_geom_limit(sum_theta, row_summation_stop)
+    return gradient, h_diag, constant, lprob
 
 
 def dm_log_likelihood_fast(U, v, theta):
@@ -183,67 +227,26 @@ def dm_half_stepping(U, v, params, lprob, current_lprob, deltas, threshold):
     return local_params, local_lprob, True
 
 
-def dm_newton_raphson(U, v, params, max_steps, gradient_sq_threshold, learn_rate_threshold, delta_lprob_threshold):
-    """
-    Find the MLE for the Dirichlet multinomial given the precomputed data structures and initial parameter estimates.
-    :param U: Precomputed U matrix from dm_precalc
-    :param v: Precomputed v vector from dm_precalc
-    :param params: Initial parameter estimates in D+1 dimensions
-    :param max_steps: Max iterations to perform Newton-Raphson stepping
-    :param gradient_sq_threshold: Threshold under which optimization stops for the sum of squared gradients
-    :param learn_rate_threshold: Threshold under which optimization stops for half-stepping
-    :return: Results of the MLE computation for parameters 1:D+1
-    """
-    current_lprob = -2 ** 20
-    delta_lprob = 2 ** 20
-    step = 0
-    while step < max_steps:
-        if delta_lprob < delta_lprob_threshold:
-            print("DM MLE converged with small delta log-probability")
-            return dm_renormalize(params)
-        step += 1
-        g, h, c, lprob = dm_hessian_precompute(U, v, params)
-        gradient_sq = np.sum(np.power(g, 2))
-        if gradient_sq < gradient_sq_threshold:
-            print("DM MLE converged with small gradient")
-            return dm_renormalize(params)
-        deltas = dm_step(h, g, c)
-        if lprob > current_lprob:
-            test_params = params - deltas
-            if np.any(test_params < 0):
-                params, lprob, success = dm_half_stepping(U, v, params, -2 ** 20, current_lprob, deltas, learn_rate_threshold)
-                if not success:
-                    return dm_renormalize(params)
-                else:
-                    delta_lprob = np.abs(lprob - current_lprob)
-                    current_lprob = lprob
-            else:
-                delta_lprob = np.abs(lprob - current_lprob)
-                current_lprob = lprob
-                params -= deltas
-        else:
-            params, lprob, success = dm_half_stepping(U, v, params, lprob, current_lprob, deltas, learn_rate_threshold)
-            if not success:
-                return dm_renormalize(params)
-            else:
-                delta_lprob = np.abs(lprob - current_lprob)
-                current_lprob = lprob
-    print("DM MLE reached max iterations")
-    return dm_renormalize(params)
-
-
-def dm_newton_raphson2(U, vd, params, max_steps, delta_eps_threshold, delta_lprob_threshold, label, verbose=False):
+def dm_newton_raphson2(X, U, vd, params, precompute,
+                       max_steps, delta_eps_threshold, delta_lprob_threshold, label, verbose=False):
     current_lprob = -2e20
     delta_lprob = 2e20
     delta_params = 2e20
     step = 0
     while (delta_params > delta_eps_threshold) and (step < max_steps) and (delta_lprob > delta_lprob_threshold):
         step += 1
-        g, h, c, lprob = dm_hessian_precompute(U, vd, params)
+        if precompute == 'sklar':
+            g, h, c, lprob = dm_hessian_precompute(U, vd, params)
+        elif precompute == 'vectorized':
+            g, h, c, lprob = dm_hessian_precompute_exact_vectorized(X, params)
+        elif precompute == 'approximate':
+            g, h, c, lprob = dm_hessian_precompute_approximate(X, params)
+        else:
+            raise ValueError('Precompute must be one of [sklar, vectorized, approximate]: {}'.format(precompute))
         delta_lprob = np.abs(lprob - current_lprob)
         current_lprob = lprob
         deltas = dm_step(h, g, c)
-        delta_params = np.sum(np.abs(deltas)) # See appendix
+        delta_params = np.sum(np.abs(deltas))  # See appendix
         params -= deltas
         if verbose:
             print('{}\t Step: {}, Lprob: {}\tDelta Lprob: {}'.format(

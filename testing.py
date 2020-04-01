@@ -157,7 +157,8 @@ def nb_test():
                                       'cade', 'BLM', 'Lidstone', param_string, '/mnt/temp/my_results.txt', batch_size)
 
 
-def test_accuracy(distribution, train_path, test_path, dataset_name, result_file, temp_dir, posterior_method=None):
+def test_accuracy(distribution, train_path, test_path, dataset_name, result_file, timing_result_file_path, temp_dir,
+                  posterior_method='empirical', precompute=None, n_threads=4):
     simplex_matrix, test, X, class_labels, smoothed, key_idxs, value_idxs = (None,) * 7
 
     if distribution == 'pooledDM':
@@ -176,7 +177,7 @@ def test_accuracy(distribution, train_path, test_path, dataset_name, result_file
                 simplex_matrix[X[c][1][j], i] = p
     else:
         engine = mutils.MLEngine(max_steps, delta_eps_threshold, delta_lprob_threshold, temp_dir, dataset_name,
-                                 posterior_method, True)
+                                 posterior_method, precompute_method=precompute, verbose=True)
         if engine.count_files_exist:
             X, class_labels, key_idxs, value_idxs = engine.load_count_files()
         else:
@@ -186,7 +187,7 @@ def test_accuracy(distribution, train_path, test_path, dataset_name, result_file
             engine.write_count_files((X, class_labels, key_idxs, value_idxs))
 
         filepaths = engine.multi_pickle_dump((X[c], c) for c in class_labels)
-        pool = mp.Pool(np.min((15, len(class_labels))))
+        pool = mp.Pool(np.min((n_threads, len(class_labels))))
         outputs = None
         try:
             if distribution == 'DM':
@@ -200,6 +201,19 @@ def test_accuracy(distribution, train_path, test_path, dataset_name, result_file
             pool.join()
 
         mle_results = engine.load_mle_results(outputs)
+        timings = engine.load_timing_results(distribution.lower(), precompute)
+        with open(timing_result_file_path, 'a') as time_out:
+            for vals in timings:
+                time_out.write('{},{},{},{},{},{},{}\n'.format(
+                    dataset_name,
+                    distribution,
+                    precompute,
+                    vals[0],  # class label
+                    vals[1],  # number of observations
+                    vals[2],  # dimensionality
+                    vals[3]  # time
+                ))
+
         assert(len(mle_results) == len(class_labels))
         if posterior_method == 'aposteriori':
             simplex_matrix = np.zeros((len(value_idxs)+1, len(class_labels)), dtype=np.float64)  # for BLM only atm
@@ -217,42 +231,45 @@ def test_accuracy(distribution, train_path, test_path, dataset_name, result_file
         smoothed = simplex_matrix
     param_string = 'n=1'
     mutils.output_results_naive_bayes(smoothed, test[dataset_name], class_labels, key_idxs, value_idxs,
-                                      dataset_name, distribution, 'Lidstone', param_string, result_file,
+                                      dataset_name, distribution, 'Lidstone', param_string, precompute, result_file,
                                       posterior_method, batch_size)
 
 
 def parameter_estimation_test():
     # Standard MAP MLE Mode for PooledDM, DM, and BLM
-    test_accuracy(distribution='pooledDM',
-                  train_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/train/',
-                  test_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/test/',
-                  dataset_name='r8',
-                  result_file='/mnt/temp/parameter_estimation_test.txt',
-                  temp_dir='/mnt/temp/2020Jan13_mle')
-
-    test_accuracy(distribution='DM',
-                  train_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/train/',
-                  test_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/test/',
-                  dataset_name='r8',
-                  result_file='/mnt/temp/parameter_estimation_test.txt',
-                  temp_dir='/mnt/temp/2020Jan13_mle')
+    # test_accuracy(distribution='pooledDM',
+    #               train_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/train/',
+    #               test_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/test/',
+    #               dataset_name='r8',
+    #               result_file='/mnt/temp/2020Apr1_mle_parameter_estimation_test.txt',
+    #               temp_dir='/mnt/temp/2020Apr1_mle')
 
     test_accuracy(distribution='BLM',
                   train_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/train/',
                   test_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/test/',
                   dataset_name='r8',
-                  result_file='/mnt/temp/parameter_estimation_test.txt',
-                  temp_dir='/mnt/temp/2020Jan13_mle')
+                  result_file='/mnt/temp/2020Apr1_mle_parameter_estimation_test.txt',
+                  timing_result_file_path='/mnt/temp/2020Apr1_mle_timings.csv',
+                  temp_dir='/mnt/temp/2020Apr1_mle',
+                  precompute='approximate',
+                  n_threads=15)
 
-    # Empirical Bayes Mode for BLM
-    test_accuracy(distribution='BLM',
-                  train_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/train/',
-                  test_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/test/',
-                  dataset_name='r8',
-                  result_file='/mnt/temp/parameter_estimation_test.txt',
-                  temp_dir='/mnt/temp/2020Jan20_mle',
-                  posterior_method='empirical')
-
+    # test_accuracy(distribution='BLM',
+    #               train_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/train/',
+    #               test_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/test/',
+    #               dataset_name='r8',
+    #               result_file='/mnt/temp/parameter_estimation_test.txt',
+    #               temp_dir='/mnt/temp/2020Jan13_mle')
+    #
+    # # Empirical Bayes Mode for BLM
+    # test_accuracy(distribution='BLM',
+    #               train_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/train/',
+    #               test_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/test/',
+    #               dataset_name='r8',
+    #               result_file='/mnt/temp/parameter_estimation_test.txt',
+    #               temp_dir='/mnt/temp/2020Jan20_mle',
+    #               posterior_method='empirical')
+    #
     # test_accuracy(distribution='BLM',
     #               train_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/train/',
     #               test_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/test/',

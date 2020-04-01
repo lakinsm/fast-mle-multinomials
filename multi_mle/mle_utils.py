@@ -6,10 +6,9 @@ from multi_mle import blm
 from multi_mle import gdm
 import pickle
 import os
-from bisect import bisect_left
 from scipy.special import gamma
-from scipy.interpolate import interp1d
 import sys
+import timeit
 
 
 class MLEngine(object):
@@ -20,6 +19,7 @@ class MLEngine(object):
                  temp_dir,
                  dataset,
                  posterior_method=None,
+                 precompute_method=None,
                  verbose=False):
         # User defined parameters
         self.max_steps = max_steps
@@ -28,6 +28,8 @@ class MLEngine(object):
         self.temp_dir = temp_dir
         self.dataset = dataset
         self.posterior_method = posterior_method
+        self.precompute_method = precompute_method
+        self.timings = []
         self.verbose = verbose
 
         # Determine which jobs may need to be computed based on provided temp_dir
@@ -48,14 +50,20 @@ class MLEngine(object):
             os.mkdir('{}/{}'.format(self.temp_dir, self.dataset))
         if not os.path.isdir('{}/{}/dm'.format(self.temp_dir, self.dataset)):
             os.mkdir('{}/{}/dm'.format(self.temp_dir, self.dataset))
+        if not os.path.isdir('{}/{}/dm/{}'.format(self.temp_dir, self.dataset, self.precompute_method)):
+            os.mkdir('{}/{}/dm/{}'.format(self.temp_dir, self.dataset, self.precompute_method))
         if not os.path.isdir('{}/{}/blm'.format(self.temp_dir, self.dataset)):
             os.mkdir('{}/{}/blm'.format(self.temp_dir, self.dataset))
-        if not os.path.isdir('{}/{}/blm/{}'.format(self.temp_dir, self.dataset, self.posterior_method)):
-            os.mkdir('{}/{}/blm/{}'.format(self.temp_dir, self.dataset, self.posterior_method))
-        if not os.path.isdir('{}/{}/gdm'.format(self.temp_dir, self.dataset)):
-            os.mkdir('{}/{}/gdm'.format(self.temp_dir, self.dataset))
-        if not os.path.isdir('{}/{}/gdm/{}'.format(self.temp_dir, self.dataset, self.posterior_method)):
-            os.mkdir('{}/{}/gdm/{}'.format(self.temp_dir, self.dataset, self.posterior_method))
+        if not os.path.isdir('{}/{}/blm/{}'.format(self.temp_dir, self.dataset, self.precompute_method)):
+            os.mkdir('{}/{}/blm/{}'.format(self.temp_dir, self.dataset, self.precompute_method))
+        if not os.path.isdir('{}/{}/blm/{}/{}'.format(self.temp_dir, self.dataset, self.precompute_method,
+                                                      self.posterior_method)):
+            os.mkdir('{}/{}/blm/{}/{}'.format(self.temp_dir, self.dataset, self.precompute_method,
+                                              self.posterior_method))
+        # if not os.path.isdir('{}/{}/gdm'.format(self.temp_dir, self.dataset)):
+        #     os.mkdir('{}/{}/gdm'.format(self.temp_dir, self.dataset))
+        # if not os.path.isdir('{}/{}/gdm/{}'.format(self.temp_dir, self.dataset, self.posterior_method)):
+        #     os.mkdir('{}/{}/gdm/{}'.format(self.temp_dir, self.dataset, self.posterior_method))
         if not os.path.isdir('{}/{}/matrices'.format(self.temp_dir, self.dataset)):
             os.mkdir('{}/{}/matrices'.format(self.temp_dir, self.dataset))
 
@@ -107,6 +115,19 @@ class MLEngine(object):
                     results.append((label, simplex))
         return results
 
+    def load_timing_results(self, method, precompute_method):
+        ret = []
+        if not precompute_method:
+            glob_path = '{}/{}/{}/*_mle_timings.csv'.format(self.temp_dir, self.dataset, method)
+        else:
+            glob_path = '{}/{}/{}/{}/*_mle_timings.csv'.format(self.temp_dir, self.dataset, method, precompute_method)
+        timing_files = glob.glob(glob_path)
+        for filepath in timing_files:
+            with open(filepath, 'r') as f:
+                data = f.read().split('\n')[0].split(',')
+                ret.append(data)
+        return ret
+
     def dm_mle_parallel(self, filepath):
         """
         Execute the Dirichlet Multinomial MLE in parallel across classes.
@@ -114,7 +135,9 @@ class MLEngine(object):
         """
         try:
             label = filepath.split('/')[-1].replace('.pickle', '')
-            this_path = '{}/{}/dm/{}.pickle'.format(self.temp_dir, self.dataset, label)
+            this_path = '{}/{}/dm/{}/{}.pickle'.format(self.temp_dir, self.dataset, self.precompute_method, label)
+            timing_path = '{}/{}/dm/{}/{}_mle_timings.csv'.format(self.temp_dir, self.dataset, self.precompute_method,
+                                                                  label)
             if os.path.exists(this_path):
                 return this_path
 
@@ -123,12 +146,22 @@ class MLEngine(object):
 
             params = dm.dm_init_params(X[0])
             U, vd = dm.dm_precalc(X[0])
-            mle = dm.dm_newton_raphson2(U, vd, params,
+            start = timeit.default_timer()
+            mle = dm.dm_newton_raphson2(X[0], U, vd, params, self.precompute_method,
                                         self.max_steps,
                                         self.delta_eps_threshold,
                                         self.delta_lprob_threshold,
                                         label,
                                         self.verbose)
+            timing = timeit.default_timer() - start
+            with open(timing_path, 'w') as time_out:
+                time_out.write('{},{},{},{}\n'.format(
+                    label,  # class label
+                    X[0].shape[0],  # number of observations
+                    len(U),  # dimensionality
+                    timing  # time
+                ))
+
             class_simplex = dm.dm_renormalize(mle)
             expanded_simplex = np.zeros(X[2], dtype=np.float64)
             for i, val in enumerate(class_simplex):
@@ -146,7 +179,8 @@ class MLEngine(object):
         """
         try:
             label = filepath.split('/')[-1].replace('.pickle', '')
-            this_path = '{}/{}/blm/{}/{}.pickle'.format(self.temp_dir, self.dataset, self.posterior_method, label)
+            this_path = '{}/{}/blm/{}/{}/{}.pickle'.format(self.temp_dir, self.dataset, self.precompute_method,
+                                                           self.posterior_method, label)
             if os.path.exists(this_path):
                 return this_path
 
@@ -155,7 +189,8 @@ class MLEngine(object):
 
             params = blm.blm_init_params(X[0])
             U, vd, vd1 = blm.blm_precalc(X[0])
-            mle = blm.blm_newton_raphson2(U, vd, vd1, params,
+            mle = blm.blm_newton_raphson2(X[0], U, vd, vd1, params,
+                                          self.precompute_method,
                                           self.max_steps,
                                           self.delta_eps_threshold,
                                           self.delta_lprob_threshold,
@@ -187,8 +222,8 @@ class MLEngine(object):
 def multinomial_random_sample(N, M, theta):
     """
     Sample from a multinomial distribution with parameters theta.
-    :param n: integer, number of multinomials to generate
-    :param m: integer, number of samples per multinomial
+    :param N: integer, number of multinomials to generate
+    :param M: integer, number of samples per multinomial
     :param theta: vector of parameters in dimension D+1
     :return: count matrix X, dimension (N, D+1)
     """
@@ -350,7 +385,7 @@ def compute_naive_bayes(Query_matrix, Training_matrix, test_set_labels, class_tr
 
 
 def output_results_naive_bayes(smoothed_matrix, test, class_labels, key_idxs, value_idxs, dataset_name,
-                               distribution, smoothing_method, param_string, result_file, posterior_method,
+                               distribution, smoothing_method, param_string, precompute, result_file, posterior_method,
                                batch_size=1000):
     accuracy_matrix = [[0, 0, 0, 0] for _ in class_labels]
     observations_processed = 0
@@ -369,10 +404,11 @@ def output_results_naive_bayes(smoothed_matrix, test, class_labels, key_idxs, va
         accuracy_matrix = compute_naive_bayes(observed_matrix, smoothed_matrix, observed_labels, class_labels,
                                               key_idxs, accuracy_matrix, posterior_method)
         observations_processed += ndim
-        print("{}, {}, {}, {}\tObservations processed: {} / {}".format(
+        print("{}, {}, {}, {}, {}\tObservations processed: {} / {}".format(
             dataset_name,
             distribution,
             smoothing_method,
+            precompute,
             param_string,
             observations_processed,
             len(test)
@@ -407,61 +443,39 @@ def output_results_naive_bayes(smoothed_matrix, test, class_labels, key_idxs, va
 
     with open(result_file, 'a') as out:
         for c in range(len(accuracy_matrix)):
-            out.write('{},{},{},{},{},{},{}\n'.format(
+            out.write('{},{},{},{},{},{},{},{}\n'.format(
                 dataset_name,
                 posterior_method,
                 distribution,
                 smoothing_method,
+                precompute,
                 param_string,
                 class_labels[c],
                 ','.join([str(x) for x in accuracy_matrix[c]])
             ))
 
 
-def load_geom_lookup_table(filepath):
-    ret = {}
-    with open(filepath, 'r') as f:
-        line = f.readline()
-        while line:
-            param, *vals = tuple(float(x) for x in line.rstrip(',\n').split(','))
-            ret[param] = vals
-            line = f.readline()
-    return ret, sorted(ret.keys())
-
-
-def approx_geom_limit(theta, n, lookup_table, sorted_keys):
-    val = 1 / theta
-    if n == 0:
-        return val
-    n_idx = n - 1
-    if theta < sorted_keys[0]:
-        val += np.pi / 6  # limit of the standard Geometric series
-    elif theta > sorted_keys[-1]:
-        pass  # limit evaluates to zero
-    else:
-        param_spline_vals = []
-        i = bisect_left(sorted_keys, theta)
-        if i < 3:
-            param_spline_vals = sorted_keys[:5]
-        elif i > (len(sorted_keys) - 4):
-            param_spline_vals = sorted_keys[-5:]
-        limit_spline_vals = []
-        for p in param_spline_vals:
-            if n > len(lookup_table[p]):
-                limit_spline_vals.append(lookup_table[p][:-1])
-            else:
-                limit_spline_vals.append(lookup_table[p][n_idx])
-        spl = interp1d(np.log(param_spline_vals), limit_spline_vals, kind='cubic')
-        val += spl(np.log(theta))
-        return val
-
-
 def exact_geom_limit(theta, n):
-    return np.sum(np.power(theta + np.array(range(n+1)), -1))
+    return np.sum((theta + np.array(range(n+1), dtype=np.float64)) ** -2)
+
+
+def approx_geom_limit(theta, n):
+    if n < 201:
+        return exact_geom_limit(theta, n)
+    else:
+        return (1 / (theta ** 2)) + ((np.pi ** 2)/6) / (1 + ((np.pi/2) * np.exp(theta)))
+
+
+def exact_harmonic_limit(theta, n):
+    return np.sum((theta + np.array(range(n+1), dtype=np.float64)) ** -1)
 
 
 def approx_harmonic_limit(theta, n):
+    if n < 0:
+        return 0
     value = 1 / theta  # zero index
+    if n == 0:
+        return value
     asymp = (np.log(n) + 0.57721 + (1 / (2 * n)) - (1 / (12 * (n ** 2))))
     scale = 0.072 * (np.log(n) ** 1.27) + (0.1677 / (1 + np.log(n))) + 0.835
     xmid = 0.5 * np.log(n) - 0.2718
@@ -470,6 +484,10 @@ def approx_harmonic_limit(theta, n):
     value += (asymp / (1 + np.exp((np.log(theta) - xmid) / scale))) + \
             (A * np.cos(4 * ((np.pi / 2) + (-np.pi / (1 + np.exp((np.log(theta) - xmid) / (v * scale))))) - (np.pi / 2)))
     return value if value > 0 else 0
+
+
+def exact_log_limit(theta, n):
+    return np.sum(np.log(theta + np.array(range(n+1), dtype=np.float64)))
 
 
 
