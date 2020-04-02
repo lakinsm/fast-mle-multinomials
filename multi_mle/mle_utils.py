@@ -287,6 +287,8 @@ def tokenize_train(train, test):
     tokenized = {k: [np.zeros((train_zipped[0].count(k), len(uniq_values)), dtype=np.int64), {}, len(uniq_values)] for k
                  in uniq_keys}
     for truth_label, words in train:
+        if not words:
+            continue
         observation_idx = key_observed_count[truth_label]
         for w in words:
             tokenized[truth_label][0][observation_idx, value_idxs[w]] += 1
@@ -305,6 +307,13 @@ def tokenize_train(train, test):
                 zero_idxs += (j,)
         if zero_idxs:
             tokenized[k][0] = np.delete(tokenized[k][0], np.array(zero_idxs), axis=1)
+
+    # Remove zero-sum rows (if they had no words but were in the training set for whatever reason)
+    for k in uniq_keys:
+        rowsums = np.sum(tokenized[k][0], axis=1)
+        zero_idxs = np.squeeze(np.argwhere(rowsums == 0))
+        if zero_idxs.size != 0:
+            tokenized[k][0] = np.delete(tokenized[k][0], zero_idxs, axis=0)
     return tokenized, class_labels, key_idxs, value_idxs
 
 

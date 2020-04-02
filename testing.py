@@ -244,14 +244,24 @@ def parameter_estimation_test():
     #               result_file='/mnt/temp/2020Apr1_mle_parameter_estimation_test.txt',
     #               temp_dir='/mnt/temp/2020Apr1_mle')
 
-    test_accuracy(distribution='BLM',
-                  train_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/train/',
-                  test_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/test/',
-                  dataset_name='r8',
+    # test_accuracy(distribution='BLM',
+    #               train_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/train/',
+    #               test_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/test/',
+    #               dataset_name='r8',
+    #               result_file='/mnt/temp/2020Apr1_mle_parameter_estimation_test.txt',
+    #               timing_result_file_path='/mnt/temp/2020Apr1_mle_timings.csv',
+    #               temp_dir='/mnt/temp/2020Apr1_mle',
+    #               precompute='approximate',
+    #               n_threads=15)
+
+    test_accuracy(distribution='DM',
+                  train_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/webkb/train',
+                  test_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/webkb/test/',
+                  dataset_name='webkb',
                   result_file='/mnt/temp/2020Apr1_mle_parameter_estimation_test.txt',
                   timing_result_file_path='/mnt/temp/2020Apr1_mle_timings.csv',
                   temp_dir='/mnt/temp/2020Apr1_mle',
-                  precompute='approximate',
+                  precompute='vectorized',
                   n_threads=15)
 
     # test_accuracy(distribution='BLM',
