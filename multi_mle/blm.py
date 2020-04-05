@@ -174,27 +174,27 @@ def blm_hessian_precompute_exact_vectorized(X, theta):
             h_diag[d] -= mutils.exact_geom_limit(theta[d], value_summation_stop)
 
         # beta param
-        beta_summation_stop = X[n, -1] - 1
-        lprob += mutils.exact_log_limit(theta[-2], beta_summation_stop)
-        gradient[-2] += mutils.exact_harmonic_limit(theta[-2], beta_summation_stop)
-        h_diag[-2] -= mutils.exact_geom_limit(theta[-2], beta_summation_stop)
+        if X[n, -1] != 0:
+            beta_summation_stop = X[n, -1] - 1
+            lprob += mutils.exact_log_limit(theta[-2], beta_summation_stop)
+            gradient[-2] += mutils.exact_harmonic_limit(theta[-2], beta_summation_stop)
+            h_diag[-2] -= mutils.exact_geom_limit(theta[-2], beta_summation_stop)
 
-        # alpha param
-        row_summation_stop_d = rowsums_d[n] - 1
-        lprob += mutils.exact_log_limit(theta[-1], row_summation_stop_d)
-        gradient[-1] += mutils.exact_harmonic_limit(theta[-1], row_summation_stop_d)
-        h_diag[-1] -= mutils.exact_geom_limit(theta[-1], row_summation_stop_d)
+        # alpha param and rowsum_d terms
+        if rowsums_d[n] != 0:
+            row_summation_stop_d = rowsums_d[n] - 1
+            lprob += mutils.exact_log_limit(theta[-1], row_summation_stop_d)
+            gradient[-1] += mutils.exact_harmonic_limit(theta[-1], row_summation_stop_d)
+            h_diag[-1] -= mutils.exact_geom_limit(theta[-1], row_summation_stop_d)
+            lprob -= mutils.exact_log_limit(sum_theta, row_summation_stop_d)
+            gradient[:-2] -= mutils.exact_harmonic_limit(sum_theta, row_summation_stop_d)
+            constants[0] += mutils.exact_geom_limit(sum_theta, row_summation_stop_d)
 
         # Row-based terms
         # Note the following are broadcast to the whole array
         row_summation_stop_d1 = rowsums_d1[n] - 1
-        lprob -= mutils.exact_log_limit(sum_theta, row_summation_stop_d)
         lprob -= mutils.exact_log_limit(theta[-1] + theta[-2], row_summation_stop_d1)
-        gradient[-2] -= mutils.exact_harmonic_limit(theta[-1] + theta[-2], row_summation_stop_d1)
-        gradient[-1] -= mutils.exact_harmonic_limit(theta[-1] + theta[-2], row_summation_stop_d1)
-
-        # Constants (this is the Hessian addition term for all Hessian entries)
-        constants[0] += mutils.exact_geom_limit(sum_theta, row_summation_stop_d)
+        gradient[-2:] -= mutils.exact_harmonic_limit(theta[-1] + theta[-2], row_summation_stop_d1)
         constants[1] += mutils.exact_geom_limit(theta[-1] + theta[-2], row_summation_stop_d1)
     return gradient, h_diag, constants, lprob
 
@@ -226,27 +226,27 @@ def blm_hessian_precompute_approximate(X, theta):
             h_diag[d] -= mutils.approx_geom_limit(theta[d], value_summation_stop)
 
         # beta param
-        beta_summation_stop = X[n, -1] - 1
-        lprob += mutils.exact_log_limit(theta[-2], beta_summation_stop)
-        gradient[-2] += mutils.approx_harmonic_limit(theta[-2], beta_summation_stop)
-        h_diag[-2] -= mutils.approx_geom_limit(theta[-2], beta_summation_stop)
+        if X[n, -1] != 0:
+            beta_summation_stop = X[n, -1] - 1
+            lprob += mutils.exact_log_limit(theta[-2], beta_summation_stop)
+            gradient[-2] += mutils.approx_harmonic_limit(theta[-2], beta_summation_stop)
+            h_diag[-2] -= mutils.approx_geom_limit(theta[-2], beta_summation_stop)
 
-        # alpha param
-        row_summation_stop_d = rowsums_d[n] - 1
-        lprob += mutils.exact_log_limit(theta[-1], row_summation_stop_d)
-        gradient[-1] += mutils.approx_harmonic_limit(theta[-1], row_summation_stop_d)
-        h_diag[-1] -= mutils.approx_geom_limit(theta[-1], row_summation_stop_d)
+        # alpha param and rowsum_d terms
+        if rowsums_d[n] != 0:
+            row_summation_stop_d = rowsums_d[n] - 1
+            lprob += mutils.exact_log_limit(theta[-1], row_summation_stop_d)
+            gradient[-1] += mutils.approx_harmonic_limit(theta[-1], row_summation_stop_d)
+            h_diag[-1] -= mutils.approx_geom_limit(theta[-1], row_summation_stop_d)
+            lprob -= mutils.exact_log_limit(sum_theta, row_summation_stop_d)
+            gradient[:-2] -= mutils.approx_harmonic_limit(sum_theta, row_summation_stop_d)
+            constants[0] += mutils.approx_geom_limit(sum_theta, row_summation_stop_d)
 
         # Row-based terms
         # Note the following are broadcast to the whole array
         row_summation_stop_d1 = rowsums_d1[n] - 1
-        lprob -= mutils.exact_log_limit(sum_theta, row_summation_stop_d)
         lprob -= mutils.exact_log_limit(theta[-1] + theta[-2], row_summation_stop_d1)
-        gradient[-2] -= mutils.approx_harmonic_limit(theta[-1] + theta[-2], row_summation_stop_d1)
-        gradient[-1] -= mutils.approx_harmonic_limit(theta[-1] + theta[-2], row_summation_stop_d1)
-
-        # Constants (this is the Hessian addition term for all Hessian entries)
-        constants[0] += mutils.approx_geom_limit(sum_theta, row_summation_stop_d)
+        gradient[-2:] -= mutils.approx_harmonic_limit(theta[-1] + theta[-2], row_summation_stop_d1)
         constants[1] += mutils.approx_geom_limit(theta[-1] + theta[-2], row_summation_stop_d1)
     return gradient, h_diag, constants, lprob
 
@@ -373,6 +373,35 @@ def blm_half_stepping(U, vd, vd1, params, lprob, current_lprob, deltas, threshol
     return local_params, local_lprob, True
 
 
+def blm_check_concavity(X, theta):
+    """
+    Check that alpha_1 and alpha parameters are sufficiently large to ensure a concave likelihood function for
+    the BLM MLE process.  See the supplement on proof of concavity for the BLM for more details.
+    :param X: Data matrix of counts, dimension (N, D)
+    :param theta: Parameter vector of length D
+    :return: Tuple (True, None) or (False, [alpha_1_delta, alpha_delta]); True is returned if concavity is ensured,
+    and False is returned otherwise along with a list of two values: alpha_1_delta and alpha_delta, which are the
+    values that need to be added to alpha_1 and alpha to ensure concavity of the likelihood function.
+    """
+    concave = True
+    eps_values = [0., 0.]
+    rowsums_d = np.squeeze(np.sum(X[:, :-1], axis=1))
+    rowsums_d1 = np.squeeze(np.sum(X, axis=1))
+    sum_theta = np.sum(theta[:-2])
+    alpha_1_lhs = sum(mutils.exact_geom_limit(theta[0], x1 - 1) for x1 in X[:, 0] if x1 != 0)
+    alpha_1_rhs = sum(mutils.exact_geom_limit(sum_theta, rsum - 1) for rsum in rowsums_d if rsum != 0)
+    if alpha_1_rhs >= alpha_1_lhs:
+        concave = False
+        eps_values[0] = alpha_1_rhs - alpha_1_lhs + 1e-20
+
+    alpha_lhs = sum(mutils.exact_geom_limit(theta[-1], rsum - 1) for rsum in rowsums_d if rsum != 0)
+    alpha_rhs = sum(mutils.exact_geom_limit(theta[-2] + theta[-1], rsum - 1) for rsum in rowsums_d1)
+    if alpha_rhs >= alpha_lhs:
+        concave = False
+        eps_values[1] = alpha_rhs - alpha_lhs + 1e-20
+    return (True, None) if concave else (False, eps_values)
+
+
 def blm_newton_raphson2(X, U, vd, vd1, params, precompute,
                         max_steps, delta_eps_threshold, delta_lprob_threshold, label, verbose=False):
     current_lprob = -2e20
@@ -380,6 +409,12 @@ def blm_newton_raphson2(X, U, vd, vd1, params, precompute,
     delta_params = 2e20
     step = 0
     while (delta_params > delta_eps_threshold) and (step < max_steps) and (delta_lprob > delta_lprob_threshold):
+        concave, eps = blm_check_concavity(X, params)
+        if not concave:
+            if verbose:
+                print('DEBUG: Concavity correction: {}, {}'.format(eps[0], eps[1]))
+            params[0] += eps[0]
+            params[-1] += eps[1]
         step += 1
         if precompute == 'sklar':
             g, h, c, lprob = blm_hessian_precompute(U, vd, vd1, params)
@@ -392,7 +427,7 @@ def blm_newton_raphson2(X, U, vd, vd1, params, precompute,
         delta_lprob = np.abs(lprob - current_lprob)
         current_lprob = lprob
         deltas = blm_step(h, g, c)
-        delta_params = np.sum(np.abs(deltas[:-2])) + (deltas[-2] / (deltas[-2] + deltas[-1]))  # See appendix
+        delta_params = np.sum(np.abs(deltas[:-2])) + (deltas[-2] / (deltas[-2] + deltas[-1]))  # See supplement on BLM
         params -= deltas
         if verbose:
             print('{}\t Step: {}, Lprob: {}\tDelta Lprob: {}'.format(

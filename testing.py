@@ -158,7 +158,7 @@ def nb_test():
 
 
 def test_accuracy(distribution, train_path, test_path, dataset_name, result_file, timing_result_file_path, temp_dir,
-                  posterior_method='empirical', precompute=None, n_threads=4):
+                  posterior_method=None, precompute=None, n_threads=4):
     simplex_matrix, test, X, class_labels, smoothed, key_idxs, value_idxs = (None,) * 7
 
     if distribution == 'pooledDM':
@@ -254,14 +254,15 @@ def parameter_estimation_test():
     #               precompute='approximate',
     #               n_threads=15)
 
-    test_accuracy(distribution='DM',
-                  train_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/webkb/train',
-                  test_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/webkb/test/',
-                  dataset_name='webkb',
+    test_accuracy(distribution='BLM',
+                  train_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/train',
+                  test_path='/mnt/phd_repositories/fast-mle-multinomials/data/debug/test/',
+                  dataset_name='r8',
                   result_file='/mnt/temp/2020Apr1_mle_parameter_estimation_test.txt',
                   timing_result_file_path='/mnt/temp/2020Apr1_mle_timings.csv',
                   temp_dir='/mnt/temp/2020Apr1_mle',
                   precompute='vectorized',
+                  posterior_method='aposteriori',
                   n_threads=15)
 
     # test_accuracy(distribution='BLM',

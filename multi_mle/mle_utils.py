@@ -60,10 +60,6 @@ class MLEngine(object):
                                                       self.posterior_method)):
             os.mkdir('{}/{}/blm/{}/{}'.format(self.temp_dir, self.dataset, self.precompute_method,
                                               self.posterior_method))
-        # if not os.path.isdir('{}/{}/gdm'.format(self.temp_dir, self.dataset)):
-        #     os.mkdir('{}/{}/gdm'.format(self.temp_dir, self.dataset))
-        # if not os.path.isdir('{}/{}/gdm/{}'.format(self.temp_dir, self.dataset, self.posterior_method)):
-        #     os.mkdir('{}/{}/gdm/{}'.format(self.temp_dir, self.dataset, self.posterior_method))
         if not os.path.isdir('{}/{}/matrices'.format(self.temp_dir, self.dataset)):
             os.mkdir('{}/{}/matrices'.format(self.temp_dir, self.dataset))
 
@@ -334,10 +330,10 @@ def r_zero_inflated_poisson(zero_inflation_prob, poisson_mean, n):
 
 
 def compute_naive_bayes(Query_matrix, Training_matrix, test_set_labels, class_training_labels, key_idxs,
-                        accuracy_matrix, posterior_method):
+                        accuracy_matrix, posterior_method=None):
     classifications = None
     if posterior_method == 'aposteriori':
-        marginal_probabilities = np.zeros((Query_matrix.shape[0], Training_matrix.shape[1]), dtype=np.float64)
+        log_marginal_probabilities = np.zeros((Query_matrix.shape[0], Training_matrix.shape[1]), dtype=np.float64)
         training_feature_sums = np.sum(Training_matrix, axis=1)
 
         # Find where the beta parameter lies and reorder the vectors such that the beta parameters are terminal
@@ -347,36 +343,41 @@ def compute_naive_bayes(Query_matrix, Training_matrix, test_set_labels, class_tr
                 beta_idx = i
                 break
 
-        Query_matrix = Query_matrix + 1  # Lidstone smoothing for a posteriori
+        # Pseudo-Lidstone smoothing for aposteriori
+        pseudo_value = 1. / Training_matrix.shape[0]
+        Training_matrix += pseudo_value
+
         for observation in range(Query_matrix.shape[0]):
+            if beta_idx < (Query_matrix.shape[1] - 1):
+                query_vec = np.concatenate((Query_matrix[observation, :beta_idx],
+                                            Query_matrix[observation, (beta_idx + 1):]))
+                query_vec = np.append(query_vec, Query_matrix[observation, beta_idx])
+            else:
+                query_vec = Query_matrix[observation, :]
             for label in range(Training_matrix.shape[1]):
-                if beta_idx < (Query_matrix.shape[1] - 1):
-                    query_vec = np.concatenate((Query_matrix[observation, :beta_idx],
-                                                Query_matrix[observation, (beta_idx+1):-1]))
-                    query_vec = np.append(query_vec, Query_matrix[observation, beta_idx])
-                    query_vec = np.append(query_vec, Query_matrix[observation, -1])
-                else:
-                    query_vec = Query_matrix[observation, :]
                 train_vec = np.concatenate((Training_matrix[:beta_idx, label],
                                             Training_matrix[(beta_idx+1):-1, label]))
                 train_vec = np.append(train_vec, Training_matrix[beta_idx, label])
                 train_vec = np.append(train_vec, Training_matrix[-1, label])
 
                 # Calculate the marginal probability of this query vector against each class in training matrix
-                print(np.sum(query_vec), np.prod(gamma(1 + query_vec)))
-                sys.exit()
-                term1 = gamma((1 + np.sum(query_vec))) / np.prod(gamma(1 + query_vec))
-                term2 = gamma(np.sum(train_vec[:-2])) / gamma(np.sum(train_vec[:-2] + query_vec[:-1]))
-                term3 = gamma(train_vec[-1] + train_vec[-2]) / gamma(train_vec[-2] + train_vec[-1] + np.sum(query_vec))
-                term4 = gamma(train_vec[-1] + np.sum(query_vec[:-1])) / gamma(train_vec[-1])
-                term5 = gamma(train_vec[-2] + query_vec[-1]) / gamma(train_vec[-2])
-                term6 = np.prod(gamma(train_vec[:-2] + query_vec[:-1])) / np.prod(gamma(train_vec[:-2]))
-                print(term1, term2, term3, term4, term5, term6)
-                prob = np.prod((term1, term2, term3, term4, term5, term6))
-                print(prob)
-                marginal_probabilities[observation, label] = prob
-
-                classifications = [class_training_labels[c] for c in np.argmax(marginal_probabilities, axis=1)]
+                query_sum_d = int(np.sum(query_vec[:-1]))
+                query_sum_d1 = int(np.sum(query_vec))
+                sum_theta = np.sum(train_vec[:-2])
+                lprob = 0
+                lprob += exact_log_limit(1, query_sum_d1 - 1)  # Count sum term
+                lprob += sum(exact_log_limit(train_vec[d], int(query_vec[d]) - 1) for d in range(len(query_vec) - 1)
+                             if query_vec[d] != 0)  # alpha_d term
+                if query_sum_d != 0:
+                    lprob += exact_log_limit(train_vec[-1], query_sum_d - 1)  # alpha term
+                    lprob -= exact_log_limit(sum_theta, query_sum_d - 1)  # alpha_d sum term
+                if query_vec[-1] != 0:
+                    lprob += exact_log_limit(train_vec[-2], int(query_vec[-1]) - 1)  # beta term
+                lprob -= exact_log_limit(train_vec[-2] + train_vec[-1], query_sum_d1)  # alpha and beta sum term
+                lprob -= sum(exact_log_limit(1, int(query_vec[d]) - 1) for d in range(len(query_vec))
+                             if query_vec[d] != 0)  # Count term
+                log_marginal_probabilities[observation, label] = lprob
+        classifications = [class_training_labels[c] for c in np.argmax(log_marginal_probabilities, axis=1)]
     else:
         classifications = [class_training_labels[c] for c in np.argmax(np.matmul(Query_matrix, Training_matrix), axis=1)]
     for i, c in enumerate(classifications):
@@ -413,11 +414,12 @@ def output_results_naive_bayes(smoothed_matrix, test, class_labels, key_idxs, va
         accuracy_matrix = compute_naive_bayes(observed_matrix, smoothed_matrix, observed_labels, class_labels,
                                               key_idxs, accuracy_matrix, posterior_method)
         observations_processed += ndim
-        print("{}, {}, {}, {}, {}\tObservations processed: {} / {}".format(
+        print("{}, {}, {}, {}, {}, {}\tObservations processed: {} / {}".format(
             dataset_name,
             distribution,
             smoothing_method,
             precompute,
+            posterior_method,
             param_string,
             observations_processed,
             len(test)
@@ -497,6 +499,3 @@ def approx_harmonic_limit(theta, n):
 
 def exact_log_limit(theta, n):
     return np.sum(np.log(theta + np.array(range(n+1), dtype=np.float64)))
-
-
-

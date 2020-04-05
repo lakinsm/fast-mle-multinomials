@@ -49,7 +49,6 @@ def dirichlet_smoothing(S, X, class_labels, mu=0.95, n=1):
     # Corpus model
     word_corpus = np.sum(S_copy, axis=1) / np.sum(S_copy)
 
-    # MLE model with Lidstone smoothing
     for i, c in enumerate(class_labels):
         class_counts = np.squeeze(np.sum(X[c][0], axis=0))
         S_copy[:, i] += float(n) / ((n * S_copy.shape[0]) + np.sum(class_counts))
@@ -77,7 +76,6 @@ def jelinek_mercer_smoothing(S, X, class_labels, beta=0.5, n=1):
     # Corpus model
     word_corpus = np.sum(S_copy, axis=1) / np.sum(S_copy)
 
-    # MLE model with Lidstone smoothing
     for i, c in enumerate(class_labels):
         class_counts = np.squeeze(np.sum(X[c][0], axis=0))
         S_copy[:, i] += float(n) / ((n * S_copy.shape[0]) + np.sum(class_counts))
@@ -101,7 +99,6 @@ def absolute_discounting_smoothing(S, X, class_labels, delta=0.01, n=1):
     # Corpus model
     word_corpus = np.sum(S_copy, axis=1) / np.sum(S_copy)
 
-    # MLE model with Lidstone smoothing
     for i, c in enumerate(class_labels):
         class_counts = np.squeeze(np.sum(X[c][0], axis=0))
         S_copy[:, i] += float(n) / ((n * S_copy.shape[0]) + np.sum(class_counts))
