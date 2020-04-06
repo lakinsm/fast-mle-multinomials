@@ -55,7 +55,6 @@ def test_accuracy(distribution, train_path, test_path, dataset_name, result_file
 
         filepaths = engine.multi_pickle_dump((X[c], c) for c in class_labels)
         pool = mp.Pool(np.min((threads, len(class_labels))))
-        outputs = None
         try:
             if distribution == 'DM':
                 outputs = pool.map(engine.dm_mle_parallel, filepaths)
@@ -68,13 +67,14 @@ def test_accuracy(distribution, train_path, test_path, dataset_name, result_file
             pool.join()
 
         mle_results = engine.load_mle_results(outputs)
-        timings = engine.load_timing_results(distribution.lower(), precompute)
+        timings = engine.load_timing_results(distribution.lower())
         with open(timing_file, 'a') as time_out:
             for vals in timings:
-                time_out.write('{},{},{},{},{},{},{}\n'.format(
+                time_out.write('{},{},{},{},{},{},{},{}\n'.format(
                     dataset_name,
                     distribution,
                     precompute,
+                    posterior_method,
                     vals[0],  # class label
                     vals[1],  # number of observations
                     vals[2],  # dimensionality
@@ -105,28 +105,28 @@ def test_accuracy(distribution, train_path, test_path, dataset_name, result_file
                 param_string = 'n=1'
                 mutils.output_results_naive_bayes(smoothed, test[dataset_name], class_labels, key_idxs, value_idxs,
                                                   dataset_name, distribution, method, param_string, precompute,
-                                                  result_file, batch_size)
+                                                  result_file, posterior_method, batch_size)
             elif method == 'dirichlet':
                 for alpha in dirichlet_grid:
                     smoothed = sm.dirichlet_smoothing(simplex_matrix, X, class_labels, alpha)
                     param_string = 'alpha={}'.format(alpha)
                     mutils.output_results_naive_bayes(smoothed, test[dataset_name], class_labels, key_idxs, value_idxs,
                                                       dataset_name, distribution, method, param_string, precompute,
-                                                      result_file, batch_size)
+                                                      result_file, posterior_method, batch_size)
             elif method == 'jm':
                 for beta in jm_grid:
                     smoothed = sm.jelinek_mercer_smoothing(simplex_matrix, X, class_labels, beta)
                     param_string = 'beta={}'.format(beta)
                     mutils.output_results_naive_bayes(smoothed, test[dataset_name], class_labels, key_idxs, value_idxs,
                                                       dataset_name, distribution, method, param_string, precompute,
-                                                      result_file, batch_size)
+                                                      result_file, posterior_method, batch_size)
             elif method == 'ad':
                 for delta in ad_grid:
                     smoothed = sm.absolute_discounting_smoothing(simplex_matrix, X, class_labels, delta)
                     param_string = 'delta={}'.format(delta)
                     mutils.output_results_naive_bayes(smoothed, test[dataset_name], class_labels, key_idxs, value_idxs,
                                                       dataset_name, distribution, method, param_string, precompute,
-                                                      result_file, batch_size)
+                                                      result_file, posterior_method, batch_size)
             elif method == 'ts':
                 for mu in ts_grid[0]:
                     for beta in ts_grid[1]:
@@ -134,7 +134,7 @@ def test_accuracy(distribution, train_path, test_path, dataset_name, result_file
                         param_string = 'mu={}|beta={}'.format(mu, beta)
                         mutils.output_results_naive_bayes(smoothed, test[dataset_name], class_labels, key_idxs, value_idxs,
                                                           dataset_name, distribution, method, param_string, precompute,
-                                                          result_file, batch_size)
+                                                          result_file, posterior_method, batch_size)
 
 
 if __name__ == '__main__':

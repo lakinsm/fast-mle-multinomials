@@ -111,12 +111,20 @@ class MLEngine(object):
                     results.append((label, simplex))
         return results
 
-    def load_timing_results(self, method, precompute_method):
+    def load_timing_results(self, method):
         ret = []
-        if not precompute_method:
-            glob_path = '{}/{}/{}/*_mle_timings.csv'.format(self.temp_dir, self.dataset, method)
+        if method == 'DM':
+            glob_path = '{}/{}/{}/{}/*_mle_timings.csv'.format(self.temp_dir, self.dataset, method,
+                                                               self.precompute_method)
+        elif method == 'BLM':
+            glob_path = '{}/{}/{}/{}/{}/*_mle_timings.csv'.format(self.temp_dir, self.dataset, method,
+                                                                  self.precompute_method, self.posterior_method)
         else:
-            glob_path = '{}/{}/{}/{}/*_mle_timings.csv'.format(self.temp_dir, self.dataset, method, precompute_method)
+            raise ValueError('Should not hit this statement. Method: {}, Precompute {}, Posterior: {}'.format(
+                method,
+                self.precompute_method,
+                self.posterior_method
+            ))
         timing_files = glob.glob(glob_path)
         for filepath in timing_files:
             with open(filepath, 'r') as f:
@@ -177,6 +185,9 @@ class MLEngine(object):
             label = filepath.split('/')[-1].replace('.pickle', '')
             this_path = '{}/{}/blm/{}/{}/{}.pickle'.format(self.temp_dir, self.dataset, self.precompute_method,
                                                            self.posterior_method, label)
+            timing_path = '{}/{}/blm/{}/{}/{}_mle_timings.csv'.format(self.temp_dir, self.dataset,
+                                                                      self.precompute_method, self.posterior_method,
+                                                                      label)
             if os.path.exists(this_path):
                 return this_path
 
@@ -185,6 +196,7 @@ class MLEngine(object):
 
             params = blm.blm_init_params(X[0])
             U, vd, vd1 = blm.blm_precalc(X[0])
+            start = timeit.default_timer()
             mle = blm.blm_newton_raphson2(X[0], U, vd, vd1, params,
                                           self.precompute_method,
                                           self.max_steps,
@@ -192,6 +204,14 @@ class MLEngine(object):
                                           self.delta_lprob_threshold,
                                           label,
                                           self.verbose)
+            timing = timeit.default_timer() - start
+            with open(timing_path, 'w') as time_out:
+                time_out.write('{},{},{},{}\n'.format(
+                    label,  # class label
+                    X[0].shape[0],  # number of observations
+                    len(U),  # dimensionality
+                    timing  # time
+                ))
             class_simplex = None
             expanded_simplex = None
             if not self.posterior_method:
@@ -225,9 +245,10 @@ def multinomial_random_sample(N, M, theta):
     """
     D1 = len(theta)
     multinomials = np.array([[random.normalvariate(theta[d], 0.01) for d in range(D1)] for _ in range(N)])
+    multinomials[multinomials <= 0] = 1e-8
     X = np.zeros(multinomials.shape, dtype=np.int64)
-    rowsums = multinomials.sum(axis=1)
-    multinomials = (multinomials / rowsums.astype(float)).tolist()
+    rowsums = np.sum(multinomials, axis=1)
+    multinomials = multinomials / rowsums[:, None]
     for n in range(N):
         idx = sorted(range(len(multinomials[n])), key=theta.__getitem__)
         sort = sorted(multinomials[n])
