@@ -114,10 +114,10 @@ class MLEngine(object):
     def load_timing_results(self, method):
         ret = []
         if method == 'DM':
-            glob_path = '{}/{}/{}/{}/*_mle_timings.csv'.format(self.temp_dir, self.dataset, method,
+            glob_path = '{}/{}/{}/{}/*_mle_timings.csv'.format(self.temp_dir, self.dataset, method.lower(),
                                                                self.precompute_method)
         elif method == 'BLM':
-            glob_path = '{}/{}/{}/{}/{}/*_mle_timings.csv'.format(self.temp_dir, self.dataset, method,
+            glob_path = '{}/{}/{}/{}/{}/*_mle_timings.csv'.format(self.temp_dir, self.dataset, method.lower(),
                                                                   self.precompute_method, self.posterior_method)
         else:
             raise ValueError('Should not hit this statement. Method: {}, Precompute {}, Posterior: {}'.format(

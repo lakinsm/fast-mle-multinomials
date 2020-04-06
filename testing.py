@@ -201,7 +201,7 @@ def test_accuracy(distribution, train_path, test_path, dataset_name, result_file
             pool.join()
 
         mle_results = engine.load_mle_results(outputs)
-        timings = engine.load_timing_results(distribution.lower(), precompute)
+        timings = engine.load_timing_results(distribution)
         with open(timing_result_file_path, 'a') as time_out:
             for vals in timings:
                 time_out.write('{},{},{},{},{},{},{}\n'.format(
