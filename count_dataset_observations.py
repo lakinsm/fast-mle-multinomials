@@ -20,4 +20,5 @@ if __name__ == '__main__':
 		dataset = fpath.split('/')[-1]
 		sys.stdout.write('{}\t{}\n'.format(dataset, fpath))
 		X, _, _, _ = load_count_files(temp_dir, dataset)
-		print(X[0])
+		for label, data in X.items():
+			print(label, data[0])
