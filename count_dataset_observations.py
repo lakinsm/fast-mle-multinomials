@@ -17,9 +17,14 @@ def load_count_files(temp_dir, dataset):
 
 if __name__ == '__main__':
 	temp_dir = sys.argv[1]
-	for fpath in glob.glob(temp_dir + '/*'):
-		dataset = fpath.split('/')[-1]
-		sys.stdout.write('{}\t{}\n'.format(dataset, fpath))
-		X, _, _, _ = load_count_files(temp_dir, dataset)
-		for label, data in X.items():
-			print(label, max(np.sum(data[0], axis=1)))
+	outfile = sys.argv[2]
+	with open(outfile, 'r') as out:
+		for fpath in glob.glob(temp_dir + '/*'):
+			dataset = fpath.split('/')[-1]
+			sys.stdout.write('{}\t{}\n'.format(dataset, fpath))
+			X, _, _, _ = load_count_files(temp_dir, dataset)
+			for label, data in X.items():
+				out.write('{},{}\n'.format(
+					label,
+					max(np.sum(data[0], axis=1))
+				))
