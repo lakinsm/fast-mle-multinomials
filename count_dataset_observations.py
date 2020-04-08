@@ -3,6 +3,7 @@
 import sys
 import pickle
 import glob
+import numpy as np
 
 
 def load_count_files(temp_dir, dataset):
@@ -21,4 +22,4 @@ if __name__ == '__main__':
 		sys.stdout.write('{}\t{}\n'.format(dataset, fpath))
 		X, _, _, _ = load_count_files(temp_dir, dataset)
 		for label, data in X.items():
-			print(label, data[0])
+			print(label, np.sum(data[0], axis=1))
