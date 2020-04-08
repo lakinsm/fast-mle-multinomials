@@ -18,7 +18,7 @@ def load_count_files(temp_dir, dataset):
 if __name__ == '__main__':
 	temp_dir = sys.argv[1]
 	outfile = sys.argv[2]
-	with open(outfile, 'r') as out:
+	with open(outfile, 'w') as out:
 		for fpath in glob.glob(temp_dir + '/*'):
 			dataset = fpath.split('/')[-1]
 			sys.stdout.write('{}\t{}\n'.format(dataset, fpath))
