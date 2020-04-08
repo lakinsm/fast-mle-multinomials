@@ -22,4 +22,4 @@ if __name__ == '__main__':
 		sys.stdout.write('{}\t{}\n'.format(dataset, fpath))
 		X, _, _, _ = load_count_files(temp_dir, dataset)
 		for label, data in X.items():
-			print(label, np.sum(data[0], axis=1))
+			print(label, max(np.sum(data[0], axis=1)))
