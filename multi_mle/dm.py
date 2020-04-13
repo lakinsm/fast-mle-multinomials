@@ -195,6 +195,19 @@ def dm_renormalize(theta):
     return theta / np.sum(theta)
 
 
+def dm_renormalize_empirical(theta, x):
+    """
+    Calculate parameter estimates for p_d to the unit simplex according to the posterior of the DM for parameter p_d.
+    This differs from the above, since we are using the training data to both estimate the maximum likelihood AND to
+    inform the posterior parameters, a la empirical Bayes.  The above, regular method only uses the MLE to inform the
+    parameters.
+    :param theta: Vector of BLM parameters are output from MLE, length D+1
+    :param x: Vector of count data summed across all observations used as input to the MLE, dimension (1, D+1)
+    :return: Empirically informed parameter estimates on the simplex, length D+1
+    """
+    return (theta + x) / (np.sum(theta) + np.sum(x))
+
+
 def dm_extract_generating_params(theta):
     return theta
 
@@ -269,6 +282,32 @@ def dm_newton_raphson2(X, U, vd, params, precompute,
         max_steps
     ))
     return params
+
+
+def dm_marginal_log_likelihood(Query_matrix, Training_matrix):
+    log_marginal_probabilities = np.zeros((Query_matrix.shape[0], Training_matrix.shape[1]), dtype=np.float64)
+
+    # Pseudo-Lidstone smoothing for aposteriori
+    pseudo_value = 1. / Training_matrix.shape[0]
+    Training_matrix += pseudo_value
+
+    for observation in range(Query_matrix.shape[0]):
+        query_vec = Query_matrix[observation, :]
+        for label in range(Training_matrix.shape[1]):
+            train_vec = Training_matrix[:, label]
+
+            # Calculate the marginal probability of this query vector against each class in training matrix
+            query_sum_d1 = int(np.sum(query_vec))
+            sum_theta = np.sum(train_vec)
+            lprob = 0
+            lprob += mutils.exact_log_limit(1, query_sum_d1 - 1)
+            lprob -= mutils.exact_log_limit(sum_theta, query_sum_d1 - 1)
+            lprob += sum(mutils.exact_log_limit(train_vec[d], int(query_vec[d] - 1)) for d in range(len(query_vec))
+                         if query_vec[d] != 0)
+            lprob -= sum(mutils.exact_log_limit(1, int(query_vec[d] - 1)) for d in range(len(query_vec))
+                         if query_vec[d] != 0)
+            log_marginal_probabilities[observation, label] = lprob
+    return log_marginal_probabilities
 
 
 if __name__ == '__main__':

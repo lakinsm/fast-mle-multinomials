@@ -92,7 +92,7 @@ def test_accuracy(distribution, train_path, test_path, dataset_name, result_file
     if not test:
         test = mutils.load_data(test_path)
 
-    if distribution == 'BLM' and posterior_method == 'aposteriori':
+    if posterior_method == 'aposteriori':
         param_string = 'n=1'
         method = 'lidstone'
         mutils.output_results_naive_bayes(simplex_matrix, test[dataset_name], class_labels, key_idxs, value_idxs,
@@ -150,7 +150,7 @@ if __name__ == '__main__':
 
     for d in datasets:
         for distribution in ('pooledDM', 'DM', 'BLM'):
-            if distribution == 'BLM':
+            if distribution == 'BLM' or distribution == 'DM':
                 for post_method in (None, 'empirical', 'aposteriori'):
                     test_accuracy(distribution, train_dir_path, test_dir_path, d, result_file_path,
                                   timing_result_file_path,
@@ -164,13 +164,6 @@ if __name__ == '__main__':
                                   timing_result_file_path,
                                   temp_dir_path, precompute='sklar', posterior_method=post_method,
                                   threads=n_threads)
-            elif distribution == 'DM':
-                test_accuracy(distribution, train_dir_path, test_dir_path, d, result_file_path,
-                              timing_result_file_path, temp_dir_path, precompute='vectorized',  threads=n_threads)
-                test_accuracy(distribution, train_dir_path, test_dir_path, d, result_file_path,
-                              timing_result_file_path, temp_dir_path, precompute='approximate', threads=n_threads)
-                test_accuracy(distribution, train_dir_path, test_dir_path, d, result_file_path,
-                              timing_result_file_path, temp_dir_path, precompute='sklar', threads=n_threads)
             elif distribution == 'pooledDM':
                 test_accuracy(distribution, train_dir_path, test_dir_path, d, result_file_path, timing_result_file_path,
                               temp_dir_path, threads=n_threads)
