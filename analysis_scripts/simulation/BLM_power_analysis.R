@@ -3,8 +3,8 @@ set.seed(100)
 source('/mnt/datasets/sampling_methods/BLM/MCMC_BLM.R')
 source('/mnt/datasets/sampling_methods/BLM/MLE_BLM.R')
 
-n_iterations = 50  # repetitions of each experiment to get parameter distributions
-n_observations = round(seq(2, 202, length.out=10))  # number of vectors (independent observations)
+n_iterations = 20  # repetitions of each experiment to get parameter distributions
+n_observations = round(seq(2, 202, length.out=5))  # number of vectors (independent observations)
 n_draws_mean = round(seq(15, 315, length.out=5))  # average number of draws for each observation
 n_draws_sd = 10  # fixed standard deviations for n_draws
 n_params = round(seq(4, 504, length.out=10))  # number of multinomial parameters (D+1)

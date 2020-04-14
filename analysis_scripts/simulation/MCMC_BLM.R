@@ -3,14 +3,6 @@ library(data.table)
 
 set.seed(154)
 
-# True parameter values for alpha_d, alpha, and beta for BLM distribution
-alpha_d = c(12, 90, 50)
-alpha = 500
-beta = 10
-
-# Example test data (multinomial)
-# example_X = t(rmultinom(10, 4, prob=c(0.1, 0.5, 0.2, 0.2)))
-
 
 # Utility functions
 dual_lgamma = function(a, n)
@@ -28,6 +20,12 @@ blm_multinom_mean = function(alpha_d, alpha, beta)
     }
     ret = c(ret, beta / (alpha + beta))
     return(ret)
+}
+
+
+multinom_mean_from_blm = function(multinom_params)
+{
+    return(c(multinom_params, sum(multinom_params[1:(length(multinom_params)-1)])))
 }
 
 
@@ -153,9 +151,9 @@ blm_mcmc_sampling = function(fixed_alpha_d,
                              threshold,
                              verbose=F)
 {
-    # fixed_alpha_d = vector of floats (0, 1), fixed parameter values for alpha_ds of BLM
-    # fixed_alpha = float (0, 1), fixed parameter value for alpha of BLM
-    # fixed_beta = float (0, 1), fixed parameter value for beta of BLM
+    # fixed_alpha_d = vector of floats, fixed parameter values for alpha_ds of BLM
+    # fixed_alpha = float, fixed parameter value for alpha of BLM
+    # fixed_beta = float, fixed parameter value for beta of BLM
     # n_observations = integer [1, inf), number of independent vectors to draw for BLM dataset
     # n_draws = integer [1, inf), number of objects drawn from the proposal multinomial distribution
     # burn = integer [0, inf], number of iterations to ignore at the start of MCMC chain
