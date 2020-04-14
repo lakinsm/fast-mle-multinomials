@@ -52,6 +52,10 @@ class MLEngine(object):
             os.mkdir('{}/{}/dm'.format(self.temp_dir, self.dataset))
         if not os.path.isdir('{}/{}/dm/{}'.format(self.temp_dir, self.dataset, self.precompute_method)):
             os.mkdir('{}/{}/dm/{}'.format(self.temp_dir, self.dataset, self.precompute_method))
+        if not os.path.isdir('{}/{}/dm/{}/{}'.format(self.temp_dir, self.dataset, self.precompute_method,
+                                                     self.posterior_method)):
+            os.mkdir('{}/{}/dm/{}/{}'.format(self.temp_dir, self.dataset, self.precompute_method,
+                                             self.posterior_method))
         if not os.path.isdir('{}/{}/blm'.format(self.temp_dir, self.dataset)):
             os.mkdir('{}/{}/blm'.format(self.temp_dir, self.dataset))
         if not os.path.isdir('{}/{}/blm/{}'.format(self.temp_dir, self.dataset, self.precompute_method)):
@@ -113,18 +117,8 @@ class MLEngine(object):
 
     def load_timing_results(self, method):
         ret = []
-        if method == 'DM':
-            glob_path = '{}/{}/{}/{}/*_mle_timings.csv'.format(self.temp_dir, self.dataset, method.lower(),
-                                                               self.precompute_method)
-        elif method == 'BLM':
-            glob_path = '{}/{}/{}/{}/{}/*_mle_timings.csv'.format(self.temp_dir, self.dataset, method.lower(),
-                                                                  self.precompute_method, self.posterior_method)
-        else:
-            raise ValueError('Should not hit this statement. Method: {}, Precompute {}, Posterior: {}'.format(
-                method,
-                self.precompute_method,
-                self.posterior_method
-            ))
+        glob_path = '{}/{}/{}/{}/{}/*_mle_timings.csv'.format(self.temp_dir, self.dataset, method.lower(),
+                                                              self.precompute_method, self.posterior_method)
         timing_files = glob.glob(glob_path)
         for filepath in timing_files:
             with open(filepath, 'r') as f:
@@ -139,9 +133,11 @@ class MLEngine(object):
         """
         try:
             label = filepath.split('/')[-1].replace('.pickle', '')
-            this_path = '{}/{}/dm/{}/{}.pickle'.format(self.temp_dir, self.dataset, self.precompute_method, label)
-            timing_path = '{}/{}/dm/{}/{}_mle_timings.csv'.format(self.temp_dir, self.dataset, self.precompute_method,
-                                                                  label)
+            this_path = '{}/{}/dm/{}/{}/{}.pickle'.format(self.temp_dir, self.dataset, self.precompute_method,
+                                                          self.posterior_method, label)
+            timing_path = '{}/{}/dm/{}/{}/{}_mle_timings.csv'.format(self.temp_dir, self.dataset,
+                                                                     self.precompute_method, self.posterior_method,
+                                                                     label)
             if os.path.exists(this_path):
                 return this_path
 
@@ -166,10 +162,19 @@ class MLEngine(object):
                     timing  # time
                 ))
 
-            class_simplex = dm.dm_renormalize(mle)
+            class_simplex = None
             expanded_simplex = np.zeros(X[2], dtype=np.float64)
-            for i, val in enumerate(class_simplex):
-                expanded_simplex[X[1][i]] = val
+            if not self.posterior_method:
+                class_simplex = dm.dm_renormalize(mle)
+            elif self.posterior_method == 'empirical':
+                class_simplex = dm.dm_renormalize_empirical(mle, np.sum(X[0], axis=0))
+            elif self.posterior_method == 'aposteriori':
+                for i, val in enumerate(mle):
+                    expanded_simplex[X[1][i]] = val
+
+            if not self.posterior_method == 'aposteriori':
+                for i, val in enumerate(class_simplex):
+                    expanded_simplex[X[1][i]] = val
             with open(this_path, 'wb') as out:
                 pickle.dump(expanded_simplex, out)
             return this_path
@@ -351,53 +356,15 @@ def r_zero_inflated_poisson(zero_inflation_prob, poisson_mean, n):
 
 
 def compute_naive_bayes(Query_matrix, Training_matrix, test_set_labels, class_training_labels, key_idxs,
-                        accuracy_matrix, posterior_method=None):
+                        accuracy_matrix, method, posterior_method=None):
     classifications = None
     if posterior_method == 'aposteriori':
-        log_marginal_probabilities = np.zeros((Query_matrix.shape[0], Training_matrix.shape[1]), dtype=np.float64)
-        training_feature_sums = np.sum(Training_matrix, axis=1)
-
-        # Find where the beta parameter lies and reorder the vectors such that the beta parameters are terminal
-        beta_idx = None
-        for i in range(len(training_feature_sums)-2, -1, -1):
-            if training_feature_sums[i] > 0:
-                beta_idx = i
-                break
-
-        # Pseudo-Lidstone smoothing for aposteriori
-        pseudo_value = 1. / Training_matrix.shape[0]
-        Training_matrix += pseudo_value
-
-        for observation in range(Query_matrix.shape[0]):
-            if beta_idx < (Query_matrix.shape[1] - 1):
-                query_vec = np.concatenate((Query_matrix[observation, :beta_idx],
-                                            Query_matrix[observation, (beta_idx + 1):]))
-                query_vec = np.append(query_vec, Query_matrix[observation, beta_idx])
-            else:
-                query_vec = Query_matrix[observation, :]
-            for label in range(Training_matrix.shape[1]):
-                train_vec = np.concatenate((Training_matrix[:beta_idx, label],
-                                            Training_matrix[(beta_idx+1):-1, label]))
-                train_vec = np.append(train_vec, Training_matrix[beta_idx, label])
-                train_vec = np.append(train_vec, Training_matrix[-1, label])
-
-                # Calculate the marginal probability of this query vector against each class in training matrix
-                query_sum_d = int(np.sum(query_vec[:-1]))
-                query_sum_d1 = int(np.sum(query_vec))
-                sum_theta = np.sum(train_vec[:-2])
-                lprob = 0
-                lprob += exact_log_limit(1, query_sum_d1 - 1)  # Count sum term
-                lprob += sum(exact_log_limit(train_vec[d], int(query_vec[d]) - 1) for d in range(len(query_vec) - 1)
-                             if query_vec[d] != 0)  # alpha_d term
-                if query_sum_d != 0:
-                    lprob += exact_log_limit(train_vec[-1], query_sum_d - 1)  # alpha term
-                    lprob -= exact_log_limit(sum_theta, query_sum_d - 1)  # alpha_d sum term
-                if query_vec[-1] != 0:
-                    lprob += exact_log_limit(train_vec[-2], int(query_vec[-1]) - 1)  # beta term
-                lprob -= exact_log_limit(train_vec[-2] + train_vec[-1], query_sum_d1)  # alpha and beta sum term
-                lprob -= sum(exact_log_limit(1, int(query_vec[d]) - 1) for d in range(len(query_vec))
-                             if query_vec[d] != 0)  # Count term
-                log_marginal_probabilities[observation, label] = lprob
+        if method == 'DM':
+            log_marginal_probabilities = dm.dm_marginal_log_likelihood(Query_matrix, Training_matrix)
+        elif method == 'BLM':
+            log_marginal_probabilities = blm.blm_marginal_log_likelihood(Query_matrix, Training_matrix)
+        else:
+            raise ValueError('Method with aposteriori argument must be one of [DM, BLM]. Provided: {}'.format(method))
         classifications = [class_training_labels[c] for c in np.argmax(log_marginal_probabilities, axis=1)]
     else:
         classifications = [class_training_labels[c] for c in np.argmax(np.matmul(Query_matrix, Training_matrix), axis=1)]
@@ -433,7 +400,7 @@ def output_results_naive_bayes(smoothed_matrix, test, class_labels, key_idxs, va
             observed_labels += (truth_label,)
 
         accuracy_matrix = compute_naive_bayes(observed_matrix, smoothed_matrix, observed_labels, class_labels,
-                                              key_idxs, accuracy_matrix, posterior_method)
+                                              key_idxs, accuracy_matrix, distribution, posterior_method)
         observations_processed += ndim
         print("{}, {}, {}, {}, {}, {}\tObservations processed: {} / {}".format(
             dataset_name,

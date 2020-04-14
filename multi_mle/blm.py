@@ -452,6 +452,54 @@ def blm_newton_raphson2(X, U, vd, vd1, params, precompute,
     return params
 
 
+def blm_marginal_log_likelihood(Query_matrix, Training_matrix):
+    log_marginal_probabilities = np.zeros((Query_matrix.shape[0], Training_matrix.shape[1]), dtype=np.float64)
+    training_feature_sums = np.sum(Training_matrix, axis=1)
+
+    # Find where the beta parameter lies and reorder the vectors such that the beta parameters are terminal
+    beta_idx = None
+    for i in range(len(training_feature_sums) - 2, -1, -1):
+        if training_feature_sums[i] > 0:
+            beta_idx = i
+            break
+
+    # Pseudo-Lidstone smoothing for aposteriori
+    pseudo_value = 1. / Training_matrix.shape[0]
+    Training_matrix += pseudo_value
+
+    for observation in range(Query_matrix.shape[0]):
+        if beta_idx < (Query_matrix.shape[1] - 1):
+            query_vec = np.concatenate((Query_matrix[observation, :beta_idx],
+                                        Query_matrix[observation, (beta_idx + 1):]))
+            query_vec = np.append(query_vec, Query_matrix[observation, beta_idx])
+        else:
+            query_vec = Query_matrix[observation, :]
+        for label in range(Training_matrix.shape[1]):
+            train_vec = np.concatenate((Training_matrix[:beta_idx, label],
+                                        Training_matrix[(beta_idx + 1):-1, label]))
+            train_vec = np.append(train_vec, Training_matrix[beta_idx, label])
+            train_vec = np.append(train_vec, Training_matrix[-1, label])
+
+            # Calculate the marginal probability of this query vector against each class in training matrix
+            query_sum_d = int(np.sum(query_vec[:-1]))
+            query_sum_d1 = int(np.sum(query_vec))
+            sum_theta = np.sum(train_vec[:-2])
+            lprob = 0
+            lprob += mutils.exact_log_limit(1, query_sum_d1 - 1)  # Count sum term
+            lprob += sum(mutils.exact_log_limit(train_vec[d], int(query_vec[d]) - 1) for d in range(len(query_vec) - 1)
+                         if query_vec[d] != 0)  # alpha_d term
+            if query_sum_d != 0:
+                lprob += mutils.exact_log_limit(train_vec[-1], query_sum_d - 1)  # alpha term
+                lprob -= mutils.exact_log_limit(sum_theta, query_sum_d - 1)  # alpha_d sum term
+            if query_vec[-1] != 0:
+                lprob += mutils.exact_log_limit(train_vec[-2], int(query_vec[-1]) - 1)  # beta term
+            lprob -= mutils.exact_log_limit(train_vec[-2] + train_vec[-1], query_sum_d1)  # alpha and beta sum term
+            lprob -= sum(mutils.exact_log_limit(1, int(query_vec[d]) - 1) for d in range(len(query_vec))
+                         if query_vec[d] != 0)  # Count term
+            log_marginal_probabilities[observation, label] = lprob
+    return log_marginal_probabilities
+
+
 if __name__ == '__main__':
     test_matrix = np.matrix('2 7 3; 1 8 2; 1 7 2', dtype=np.int32)
     test_u, test_vd, test_vd1 = blm_precalc(test_matrix)
