@@ -334,7 +334,8 @@ def blm_renormalize_empirical(theta, x):
     """
     beta_term = (theta[-1] + np.sum(x[:-1])) / (theta[-1] + theta[-2] + np.sum(x))
     dirichlet_numerator = theta[:-2] + x[:-1]
-    return beta_term * (dirichlet_numerator / np.sum(dirichlet_numerator))
+    theta_d = beta_term * (dirichlet_numerator / np.sum(dirichlet_numerator))
+    return np.append(theta_d, 1 - np.sum(theta_d))
 
 
 def blm_extract_generating_params(theta):

@@ -271,11 +271,61 @@ def multinomial_random_sample(N, M, theta):
     return X, np.mean(multinomials, axis=0)
 
 
+def load_dataset_generator(train_dir, test_dir, metadata=False):
+    train_path = train_dir.replace('\\\\', '/')
+    test_path = test_dir.replace('\\\\', '/')
+    for dataset in glob.glob(train_path + '/*'):
+        ret_train_data = tuple()
+        ret_test_data = tuple()
+        meta_data = {}
+        data_train_path = dataset.replace('\\', '/')
+        dataset_name = data_train_path.split('/')[-1].split('-')[0]
+        data_test_path = test_path + '/' + dataset_name + '-test-stemmed.txt'
+        with open(data_train_path, 'r') as train, open(data_test_path, 'r') as test:
+            train_data = train.read().split('\n')
+            test_data = test.read().split('\n')
+            if not metadata:
+                for line in train_data:
+                    if not line or line[0] == '#':
+                        continue
+                    truth_label, words = line.split('\t')
+                    ret_train_data += ((truth_label, words.split()),)
+            else:
+                class_count = 0
+                for line in train_data:
+                    if not line:
+                        continue
+                    if line[0] == '#':
+                        class_count += 1
+                        _, param_sd, param_draws, mean_lin, obs, data_draws, *class_params = line[1:].split(',')
+                        if 'param_sd' not in meta_data:
+                            meta_data['param_sd'] = param_sd
+                            meta_data['param_draws'] = param_draws
+                            meta_data['mean_lin'] = mean_lin
+                            meta_data['obs'] = obs
+                            meta_data['data_draws'] = data_draws
+                            meta_data['n_classes'] = 1
+                            meta_data['class_' + str(class_count)] = class_params
+                            meta_data['name'] = dataset_name
+                        else:
+                            meta_data['n_classes'] += 1
+                            meta_data['class_' + str(class_count)] = class_params
+                    else:
+                        truth_label, words = line.split('\t')
+                        ret_train_data += ((truth_label, words.split()),)
+            for line in test_data:
+                if not line:
+                    continue
+                truth_label, words = line.split('\t')
+                ret_test_data += ((truth_label, words.split()),)
+        yield (ret_train_data, ret_test_data) if not metadata \
+            else (ret_train_data, ret_test_data, meta_data)
+
+
 def load_data(folder):
     all_datasets = {}
     pypath = folder.replace('\\\\', '/')
     for dataset in glob.glob(pypath + '/*'):
-
         pydatapath = dataset.replace('\\', '/')
         dataset = pydatapath.split('/')[-1].split('-')[0]
         all_datasets.setdefault(dataset, ())
@@ -285,9 +335,6 @@ def load_data(folder):
                 if not line:
                     continue
                 truth_label, words = line.split('\t')
-                # print(truth_label, words)
-                # if len(words) < 3:  # filter out low quality training observations
-                #     continue
                 all_datasets[dataset] += ((truth_label, words.split()),)
     return all_datasets
 
