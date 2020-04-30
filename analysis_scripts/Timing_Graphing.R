@@ -65,9 +65,10 @@ dat$PrecomputeMethod = factor(dat$PrecomputeMethod,
 
 obs_dat = dat[Experiment == 'VaryObservations', .SD, .SDcols=!c('NumParameters', 'NumDraws')]
 g_obs = ggplot(obs_dat, aes(x=NumObservations, y=MeanSeconds, color=PrecomputeMethod)) +
-  geom_line(size=1) +
+  # geom_line(size=1) +
   geom_point(size=2) +
-  geom_errorbar(aes(ymin=MeanSeconds - SdSeconds, ymax=MeanSeconds + SdSeconds), size=1, width=1) +
+  # geom_errorbar(aes(ymin=MeanSeconds - SdSeconds, ymax=MeanSeconds + SdSeconds), size=1, width=1) +
+  geom_smooth(method='loess', alpha=0.4) +
   facet_wrap(~MLEMethod, ncol=1) +
   ggtitle('Runtime Varying # of Observations') +
   ylab('Mean Elapsed Real Time (seconds)') +
@@ -79,9 +80,10 @@ g_obs = ggplot(obs_dat, aes(x=NumObservations, y=MeanSeconds, color=PrecomputeMe
 
 param_dat = dat[Experiment == 'VaryParameters', .SD, .SDcols=!c('NumObservations', 'NumDraws')]
 g_param = ggplot(param_dat, aes(x=NumParameters, y=MeanSeconds, color=PrecomputeMethod)) +
-  geom_line(size=1) +
+  # geom_line(size=1) +
   geom_point(size=2) +
-  geom_errorbar(aes(ymin=MeanSeconds - SdSeconds, ymax=MeanSeconds + SdSeconds), size=1, width=1) +
+  # geom_errorbar(aes(ymin=MeanSeconds - SdSeconds, ymax=MeanSeconds + SdSeconds), size=1, width=1) +
+  geom_smooth(method='loess', alpha=0.4) +
   facet_wrap(~MLEMethod, ncol=1) +
   ggtitle('Runtime Varying # of Parameters') +
   ylab('Mean Elapsed Real Time (seconds)') +
@@ -93,9 +95,10 @@ g_param = ggplot(param_dat, aes(x=NumParameters, y=MeanSeconds, color=Precompute
 
 draw_dat = dat[Experiment == 'VaryMultinomDraws', .SD, .SDcols=!c('NumObservations', 'NumParameters')]
 g_draw = ggplot(draw_dat, aes(x=NumDraws, y=MeanSeconds, color=PrecomputeMethod)) +
-  geom_line(size=1) +
+  # geom_line(size=1) +
   geom_point(size=2) +
-  geom_errorbar(aes(ymin=MeanSeconds - SdSeconds, ymax=MeanSeconds + SdSeconds), size=1, width=1) +
+  # geom_errorbar(aes(ymin=MeanSeconds - SdSeconds, ymax=MeanSeconds + SdSeconds), size=1, width=1) +
+  geom_smooth(method='loess', alpha=0.4) +
   facet_wrap(~MLEMethod, ncol=1) +
   ggtitle('Runtime Varying # of Draws') +
   ylab('Mean Elapsed Real Time (seconds)') +
