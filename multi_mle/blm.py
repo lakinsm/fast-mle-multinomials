@@ -428,14 +428,15 @@ def blm_newton_raphson2(X, U, vd, vd1, params, precompute,
         delta_lprob = np.abs(lprob - current_lprob)
         current_lprob = lprob
         deltas = blm_step(h, g, c)
-        #
-        # # The following if statement estimates the beta parameter once, then fixes it relative to alpha.  This was added
-        # # to prevent situations where the beta parameter being free results in overparameterization and simultaneous
-        # # increases to beta and alpha indefinitely during the MLE process, resulting in poor accuracy.
-        # if step > 1:
-        #     delta_alpha_beta_ratio = deltas[-1] / deltas[-2]
-        #     deltas[-1] = params[-2] * delta_alpha_beta_ratio  # calculate true alpha delta based on delta ratio
-        #     deltas[-2] = 0  # fix beta param
+
+        # The following if statement estimates the beta parameter once, then fixes it relative to alpha.  This was added
+        # to prevent situations where the beta parameter being free results in overparameterization and simultaneous
+        # increases to beta and alpha indefinitely during the MLE process, resulting in poor accuracy.
+        if params[-2] > 10000:
+            r = deltas[-1] / (deltas[-1] + deltas[-2])  # Ratio to preserve
+            params[-1] = (r * params[-2]) / (1 - r)  # calculate new alpha based on delta ratio
+            deltas[-1] = 0  # no need to change alpha now
+            deltas[-2] = 0  # fix beta param
         params -= deltas
         delta_params = np.sum(np.abs(deltas[:-2])) + (deltas[-2] / (deltas[-2] + deltas[-1]))  # See supplement on BLM
         if verbose:

@@ -70,11 +70,10 @@ def test_accuracy(distribution, train_path, test_path, dataset_name, result_file
         timings = engine.load_timing_results(distribution)
         with open(timing_file, 'a') as time_out:
             for vals in timings:
-                time_out.write('{},{},{},{},{},{},{},{}\n'.format(
+                time_out.write('{},{},{},{},{},{},{}\n'.format(
                     dataset_name,
                     distribution,
                     precompute,
-                    posterior_method,
                     vals[0],  # class label
                     vals[1],  # number of observations
                     vals[2],  # dimensionality

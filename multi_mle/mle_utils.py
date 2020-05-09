@@ -117,8 +117,8 @@ class MLEngine(object):
 
     def load_timing_results(self, method):
         ret = []
-        glob_path = '{}/{}/{}/{}/{}/*_mle_timings.csv'.format(self.temp_dir, self.dataset, method.lower(),
-                                                              self.precompute_method, self.posterior_method)
+        glob_path = '{}/{}/{}/{}/*_mle_timings.csv'.format(self.temp_dir, self.dataset, method.lower(),
+                                                           self.posterior_method)
         timing_files = glob.glob(glob_path)
         for filepath in timing_files:
             with open(filepath, 'r') as f:
@@ -133,34 +133,42 @@ class MLEngine(object):
         """
         try:
             label = filepath.split('/')[-1].replace('.pickle', '')
-            this_path = '{}/{}/dm/{}/{}/{}.pickle'.format(self.temp_dir, self.dataset, self.precompute_method,
-                                                          self.posterior_method, label)
-            timing_path = '{}/{}/dm/{}/{}/{}_mle_timings.csv'.format(self.temp_dir, self.dataset,
-                                                                     self.precompute_method, self.posterior_method,
-                                                                     label)
-            if os.path.exists(this_path):
-                return this_path
+            mle_path = '{}/{}/dm/{}/{}.pickle'.format(self.temp_dir, self.dataset, self.precompute_method, label)
+            expanded_simplex_path = '{}/{}/dm/{}/{}/{}.pickle'.format(self.temp_dir, self.dataset,
+                                                                       self.precompute_method, self.posterior_method,
+                                                                       label)
+            timing_path = '{}/{}/dm/{}/{}_mle_timings.csv'.format(self.temp_dir, self.dataset, self.precompute_method,
+                                                                  label)
 
-            with open(filepath, 'rb') as infile:
-                X = pickle.load(infile)
+            if os.path.exists(mle_path) and os.path.exists(expanded_simplex_path):
+                return expanded_simplex_path
+            else:
+                with open(filepath, 'rb') as infile:
+                    X = pickle.load(infile)
 
-            params = dm.dm_init_params(X[0])
-            U, vd = dm.dm_precalc(X[0])
-            start = timeit.default_timer()
-            mle = dm.dm_newton_raphson2(X[0], U, vd, params, self.precompute_method,
-                                        self.max_steps,
-                                        self.delta_eps_threshold,
-                                        self.delta_lprob_threshold,
-                                        label,
-                                        self.verbose)
-            timing = timeit.default_timer() - start
-            with open(timing_path, 'w') as time_out:
-                time_out.write('{},{},{},{}\n'.format(
-                    label,  # class label
-                    X[0].shape[0],  # number of observations
-                    len(U),  # dimensionality
-                    timing  # time
-                ))
+            if os.path.exists(mle_path) and not os.path.exists(expanded_simplex_path):
+                mle = pickle.load(mle_path)
+            else:
+                params = blm.blm_init_params(X[0])
+                U, vd, vd1 = blm.blm_precalc(X[0])
+                start = timeit.default_timer()
+                mle = dm.dm_newton_raphson2(X[0], U, vd, params,
+                                              self.precompute_method,
+                                              self.max_steps,
+                                              self.delta_eps_threshold,
+                                              self.delta_lprob_threshold,
+                                              label,
+                                              self.verbose)
+                timing = timeit.default_timer() - start
+                with open(timing_path, 'w') as time_out:
+                    time_out.write('{},{},{},{}\n'.format(
+                        label,  # class label
+                        X[0].shape[0],  # number of observations
+                        len(U),  # dimensionality
+                        timing  # time
+                    ))
+                with open(mle_path, 'rb') as mle_out:
+                    pickle.dump(mle, mle_out)
 
             class_simplex = None
             expanded_simplex = np.zeros(X[2], dtype=np.float64)
@@ -175,9 +183,9 @@ class MLEngine(object):
             if not self.posterior_method == 'aposteriori':
                 for i, val in enumerate(class_simplex):
                     expanded_simplex[X[1][i]] = val
-            with open(this_path, 'wb') as out:
+            with open(expanded_simplex_path, 'wb') as out:
                 pickle.dump(expanded_simplex, out)
-            return this_path
+            return expanded_simplex_path
         except Exception as e:
             raise e
 
@@ -188,35 +196,42 @@ class MLEngine(object):
         """
         try:
             label = filepath.split('/')[-1].replace('.pickle', '')
-            this_path = '{}/{}/blm/{}/{}/{}.pickle'.format(self.temp_dir, self.dataset, self.precompute_method,
-                                                           self.posterior_method, label)
-            timing_path = '{}/{}/blm/{}/{}/{}_mle_timings.csv'.format(self.temp_dir, self.dataset,
-                                                                      self.precompute_method, self.posterior_method,
-                                                                      label)
-            if os.path.exists(this_path):
-                return this_path
+            mle_path = '{}/{}/blm/{}/{}.pickle'.format(self.temp_dir, self.dataset, self.precompute_method, label)
+            expanded_simplex_path = '{}/{}/blm/{}/{}/{}.pickle'.format(self.temp_dir, self.dataset,
+                                                                       self.precompute_method, self.posterior_method,
+                                                                       label)
+            timing_path = '{}/{}/blm/{}/{}_mle_timings.csv'.format(self.temp_dir, self.dataset, self.precompute_method,
+                                                                   label)
+            if os.path.exists(mle_path) and os.path.exists(expanded_simplex_path):
+                return expanded_simplex_path
+            else:
+                with open(filepath, 'rb') as infile:
+                    X = pickle.load(infile)
 
-            with open(filepath, 'rb') as infile:
-                X = pickle.load(infile)
+            if os.path.exists(mle_path) and not os.path.exists(expanded_simplex_path):
+                mle = pickle.load(mle_path)
+            else:
+                params = blm.blm_init_params(X[0])
+                U, vd, vd1 = blm.blm_precalc(X[0])
+                start = timeit.default_timer()
+                mle = blm.blm_newton_raphson2(X[0], U, vd, vd1, params,
+                                              self.precompute_method,
+                                              self.max_steps,
+                                              self.delta_eps_threshold,
+                                              self.delta_lprob_threshold,
+                                              label,
+                                              self.verbose)
+                timing = timeit.default_timer() - start
+                with open(timing_path, 'w') as time_out:
+                    time_out.write('{},{},{},{}\n'.format(
+                        label,  # class label
+                        X[0].shape[0],  # number of observations
+                        len(U),  # dimensionality
+                        timing  # time
+                    ))
+                with open(mle_path, 'rb') as mle_out:
+                    pickle.dump(mle, mle_out)
 
-            params = blm.blm_init_params(X[0])
-            U, vd, vd1 = blm.blm_precalc(X[0])
-            start = timeit.default_timer()
-            mle = blm.blm_newton_raphson2(X[0], U, vd, vd1, params,
-                                          self.precompute_method,
-                                          self.max_steps,
-                                          self.delta_eps_threshold,
-                                          self.delta_lprob_threshold,
-                                          label,
-                                          self.verbose)
-            timing = timeit.default_timer() - start
-            with open(timing_path, 'w') as time_out:
-                time_out.write('{},{},{},{}\n'.format(
-                    label,  # class label
-                    X[0].shape[0],  # number of observations
-                    len(U),  # dimensionality
-                    timing  # time
-                ))
             class_simplex = None
             expanded_simplex = None
             if not self.posterior_method:
@@ -233,9 +248,9 @@ class MLEngine(object):
                 expanded_simplex = np.zeros(X[2], dtype=np.float64)
                 for i, val in enumerate(class_simplex):
                     expanded_simplex[X[1][i]] = val
-            with open(this_path, 'wb') as out:
+            with open(expanded_simplex_path, 'wb') as out:
                 pickle.dump(expanded_simplex, out)
-            return this_path
+            return expanded_simplex_path
         except Exception as e:
             raise e
 
