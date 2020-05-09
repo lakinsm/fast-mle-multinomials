@@ -150,7 +150,7 @@ if __name__ == '__main__':
     for d in datasets:
         for distribution in ('pooledDM', 'DM', 'BLM'):
             if distribution == 'BLM' or distribution == 'DM':
-                for post_method in (None, 'empirical', 'aposteriori'):
+                for post_method in (None, 'aposteriori'):
                     test_accuracy(distribution, train_dir_path, test_dir_path, d, result_file_path,
                                   timing_result_file_path,
                                   temp_dir_path, precompute='vectorized', posterior_method=post_method,
