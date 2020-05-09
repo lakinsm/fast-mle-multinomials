@@ -147,7 +147,8 @@ class MLEngine(object):
                     X = pickle.load(infile)
 
             if os.path.exists(mle_path) and not os.path.exists(expanded_simplex_path):
-                mle = pickle.load(mle_path)
+                with open(mle_path, 'rb') as mle_in:
+                    mle = pickle.load(mle_in)
             else:
                 params = blm.blm_init_params(X[0])
                 U, vd, vd1 = blm.blm_precalc(X[0])
@@ -209,7 +210,8 @@ class MLEngine(object):
                     X = pickle.load(infile)
 
             if os.path.exists(mle_path) and not os.path.exists(expanded_simplex_path):
-                mle = pickle.load(mle_path)
+                with open(mle_path, 'rb') as mle_in:
+                    mle = pickle.load(mle_in)
             else:
                 params = blm.blm_init_params(X[0])
                 U, vd, vd1 = blm.blm_precalc(X[0])

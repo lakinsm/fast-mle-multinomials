@@ -435,7 +435,9 @@ def blm_newton_raphson2(X, U, vd, vd1, params, precompute,
         # increases to beta and alpha indefinitely during the MLE process, resulting in poor accuracy.
         if not param_escape:
             rb = params[-2] / (params[-1] + params[-2])
-            if (rb / max(params[:-2])) > 50:
+            if rb > 0.1:
+                param_escape = True
+            elif (rb / max(params[:-2] / sum(params[:-2]))) > 10:
                 param_escape = True
         if param_escape:
             ra = deltas[-1] / (deltas[-1] + deltas[-2])  # Ratio to preserve
