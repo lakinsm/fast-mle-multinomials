@@ -70,8 +70,10 @@ def blm_init_params(X):
     if s == 0:
         s = 1
     d_params = np.squeeze(np.array(s * mean))
-    # return np.append(d_params, np.mean(d_params[:-1]))
-    return np.append(d_params, np.sum(d_params[:-1]))
+    params = np.append(d_params, np.sum(d_params[:-1]))
+    if (100*params[-2]) > params[-1]:
+        params[-1] *= 100
+    return params
 
 
 def blm_hessian_precompute(U, v_d, v_d1, theta):
@@ -433,22 +435,22 @@ def blm_newton_raphson2(X, U, vd, vd1, params, precompute,
         # The following if statement estimates the beta parameter once, then fixes it relative to alpha.  This was added
         # to prevent situations where the beta parameter being free results in overparameterization and simultaneous
         # increases to beta and alpha indefinitely during the MLE process, resulting in poor accuracy.
-        if not param_escape:
-            rb = params[-2] / (params[-1] + params[-2])
-            if rb > 0.1:
-                param_escape = True
-            elif (rb / max(params[:-2] / sum(params[:-2]))) > 10:
-                param_escape = True
-        if param_escape:
-            ra = deltas[-1] / (deltas[-1] + deltas[-2])  # Ratio to preserve
-            params[-1] = (ra * params[-2]) / (1 - ra)  # calculate new alpha based on delta ratio
-            deltas[-1] = 0  # no need to change alpha now
-            deltas[-2] = 0  # fix beta param
-            delta_params = np.sum(np.abs(deltas[:-2]))
-        else:
-            delta_params = np.sum(np.abs(deltas[:-2])) + (
-                    deltas[-2] / (deltas[-2] + deltas[-1]))  # See supplement on BLM
-
+        # if not param_escape:
+        #     rb = params[-2] / (params[-1] + params[-2])
+        #     if rb > 0.1:
+        #         param_escape = True
+        #     elif (rb / max(params[:-2] / sum(params[:-2]))) > 10:
+        #         param_escape = True
+        # if param_escape:
+        #     ra = deltas[-1] / (deltas[-1] + deltas[-2])  # Ratio to preserve
+        #     params[-1] = (ra * params[-2]) / (1 - ra)  # calculate new alpha based on delta ratio
+        #     deltas[-1] = 0  # no need to change alpha now
+        #     deltas[-2] = 0  # fix beta param
+        #     delta_params = np.sum(np.abs(deltas[:-2]))
+        # else:
+        #     delta_params = np.sum(np.abs(deltas[:-2])) + (
+        #             deltas[-2] / (deltas[-2] + deltas[-1]))  # See supplement on BLM
+        delta_params = np.sum(np.abs(deltas[:-2]) / np.sum(np.abs(deltas[:-2]))) + (deltas[-2] / (deltas[-2] + deltas[-1]))  # See supplement on BLM
         params -= deltas
         if verbose:
             print('{}\t Step: {}, Lprob: {}\tDelta Lprob: {}'.format(
