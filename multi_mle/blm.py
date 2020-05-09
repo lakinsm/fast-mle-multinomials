@@ -440,10 +440,10 @@ def blm_newton_raphson2(X, U, vd, vd1, params, precompute,
         # happens, it seems to happen quickly, so we can just switch back to DM optimization here.
         if not param_escape:
             beta_alpha_ratio = params[-2] / params[-1]
-            if rb > 0.5:
+            if beta_alpha_ratio > 0.5:
                 param_escape = True
-        if param_escape:
-            break
+                break
+
         delta_params = np.sum(np.abs(deltas[:-2])) + (
                 deltas[-2] / (deltas[-2] + deltas[-1]))  # See supplement on BLM
         params -= deltas
