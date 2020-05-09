@@ -5,6 +5,40 @@ library(gridExtra)
 
 setwd('C:/Users/lakin/PycharmProjects/fast-mle-multinomials/analytic_data/')
 
+custom_theme_nolegend = function (base_size = 11, base_family = 'sans', base_line_size = base_size/22, 
+                                  base_rect_size = base_size/22) 
+{
+  theme_grey(base_size = base_size, base_family = base_family, 
+             base_line_size = base_line_size, base_rect_size = base_rect_size) %+replace% 
+    theme(
+      panel.background = element_rect(fill = "white", colour = NA), 
+      panel.border = element_rect(fill = NA, colour = "grey20"), 
+      panel.grid = element_line(colour = "grey92"), 
+      panel.grid.minor = element_line(size = rel(0.5)), 
+      strip.background = element_rect(fill = "grey85", colour = "grey20"), 
+      legend.key = element_rect(fill = "white", colour = NA), 
+      plot.title=element_text(hjust=0.5, vjust=2),
+      legend.position='None',
+      plot.margin = unit(rep(0.5, 4), "cm"),
+      complete = TRUE
+    )
+}
+
+custom_theme_legend = function(base_size=11, base_family='sans')
+{
+  custom_theme_nolegend(base_size = base_size, base_family=base_family) %+replace%
+    theme(
+      legend.position='right',
+      legend.text=element_text(size=rel(0.8))
+    )
+}
+
+extract_highest_f1 = function(X)
+{
+  return(X[F1 == max(F1)][1])
+}
+
+
 dat = data.table(read.csv('2020Apr15_mle_results.csv', header=F))
 colnames(dat) = c('DataSet', 'PosteriorMethod', 'MLEMethod', 'SmoothingMethod', 'PrecomputeMethod', 'ParamString',
                   'Class', 'TruePositives', 'FalsePositives', 'FalseNegatives',
@@ -63,48 +97,155 @@ plot_subdat = subdat[, .SD, .SDcols=!c('TruePositives', 'FalsePositives',
                                        'Specificity', 'NPV', 'Accuracy',
                                        'PPVPrecision', 'SensitivityRecall')]
 
-mdat = plot_subdat
+plot_subdat2 = plot_subdat[, extract_highest_f1(.SD), by=c('DataSet', 'MLEMethod',
+                                                           'SmoothingMethod', 'PosteriorMethod',
+                                                           'PrecomputeMethod')]
+plot_subdat2[, c('Param1Value', 'Param2Value') := NULL]
 
+mdat = plot_subdat2
+
+smooth_transl = c('lidstone'='Lidstone', 
+                  'dirichlet'='Dirichlet', 
+                  'jm'='Jelinek-Mercer', 
+                  'ad'='Absolute Discounting', 
+                  'ts'='Two-Stage')
+mdat$SmoothingMethod = smooth_transl[as.character(mdat$SmoothingMethod)]
 mdat$SmoothingMethod = factor(mdat$SmoothingMethod,
-                              levels=c('lidstone', 'dirichlet', 'jm', 'ad', 'ts'),
+                              levels=c('Lidstone', 
+                                       'Dirichlet', 
+                                       'Jelinek-Mercer', 
+                                       'Absolute Discounting', 
+                                       'Two-Stage'),
                               ordered=T)
 
-lidstone_g = ggplot(mdat[SmoothingMethod == 'lidstone'], 
-                    aes(x=MLEMethod, y=F1, fill=PrecomputeMethod)) +
+posterior_transl = c('None'='Standard Naive Bayes',
+                     'empirical'='Empirical Naive Bayes',
+                     'aposteriori'='Marginal Likelihood Classification')
+mdat$PosteriorMethod = posterior_transl[as.character(mdat$PosteriorMethod)]
+mdat$PosteriorMethod = factor(mdat$PosteriorMethod,
+                              levels=c('Standard Naive Bayes',
+                                       'Empirical Naive Bayes',
+                                       'Marginal Likelihood Classification'),
+                              ordered=T)
+
+
+precompute_transl = c('None'='Multinomial',
+                      'vectorized'='Vectorized',
+                      'approximate'='Approximate',
+                      'sklar'='Sklar')
+mdat$PrecomputeMethod = precompute_transl[as.character(mdat$PrecomputeMethod)]
+mdat$PrecomputeMethod = factor(mdat$PrecomputeMethod,
+                               levels=c('Sklar',
+                                        'Vectorized',
+                                        'Approximate',
+                                        'Multinomial'),
+                               ordered=T)
+
+mle_transl = c('pooledDM'='Multinomial',
+               'DM'='DM',
+               'BLM'='BLM')
+mdat$MLEMethod = mle_transl[as.character(mdat$MLEMethod)]
+mdat$MLEMethod = factor(mdat$MLEMethod,
+                        levels=c('DM',
+                                 'BLM',
+                                 'Multinomial'),
+                        ordered=T)
+
+colnames(mdat) = c('DataSet', 'MLEMethod', 'Smoothing', 'Classifier',
+                   'PrecomputeMethod', 'F1')
+
+mdat = mdat[Smoothing == 'Lidstone']
+mdat[, Smoothing := NULL]
+
+plotdir = 'C:/Users/lakin/PycharmProjects/fast-mle-multinomials/analytic_data/graphs/'
+
+g1 = ggplot(mdat, aes(x=MLEMethod, y=F1, fill=PrecomputeMethod)) +
   geom_bar(stat='identity', position='dodge') +
-  facet_wrap(~DataSet) +
-  ggtitle('Lidstone Smoothing') +
-  theme(plot.title=element_text(hjust=0.5))
-print(lidstone_g)
-
-dirichlet_g = ggplot(mdat[SmoothingMethod == 'dirichlet'], 
-                     aes(x=Param1Value, y=F1, color=PrecomputeMethod)) +
-  geom_point(size=3, alpha=0.8) +
-  facet_wrap(MLEMethod~DataSet) +
-  ggtitle('JM Smoothing') +
-  theme(plot.title=element_text(hjust=0.5))
-print(dirichlet_g)
-
-jm_g = ggplot(mdat[SmoothingMethod == 'jm'], 
-              aes(x=Param1Value, y=F1, color=PrecomputeMethod)) +
-  geom_point(size=3, alpha=0.8) +
-  facet_wrap(MLEMethod~DataSet) +
-  ggtitle('JM Smoothing') +
-  theme(plot.title=element_text(hjust=0.5))
-print(jm_g)
-
-ad_g = ggplot(mdat[SmoothingMethod == 'ad'], 
-              aes(x=log(Param1Value), y=F1, color=PrecomputeMethod)) +
-  geom_point(size=3, alpha=0.8) +
-  facet_wrap(MLEMethod~DataSet) +
-  ggtitle('AD Smoothing') +
-  theme(plot.title=element_text(hjust=0.5))
-print(ad_g)
+  geom_text(aes(label=round(F1, 1)), size=6.5, position=position_dodge(width=0.9),
+            hjust=0.5, vjust=-0.25) +
+  ylim(c(0, 100)) +
+  facet_wrap(DataSet~Classifier, labeller = label_both, ncol=3, scales='free_x') +
+  scale_fill_brewer('Precompute Method', palette='Set2') +
+  # ggtitle('Gold Standard Data Classification Performance') +
+  xlab('MLE Method (Distribution)') +
+  ylab('F1 Score') +
+  custom_theme_legend(
+    base_size = 23
+  )
+png(filename=paste0(plotdir, 'Figure4_GoldStandardData.png'),
+    width=2000, height=2000)
+print(g1)
+dev.off()
 
 
-# dirichlet_g = ggplot(mdat[!(SmoothingMethod %in% c('ts', 'lidstone'))], 
-#                      aes(x=Param1Value, y=F1, color=MLEMethod)) +
-#   geom_line() +
-#   facet_wrap(DataSet~SmoothingMethod)
-# print(dirichlet_g)
+
+
+## The below are for all smoothing methods
+# webkb_g = ggplot(mdat[DataSet == 'webkb'], 
+#                     aes(x=MLEMethod, y=F1, fill=PrecomputeMethod)) +
+#   geom_bar(stat='identity', position='dodge') +
+#   geom_text(aes(label=round(F1, 1)), size=3.5, position=position_dodge(width=1),
+#             hjust=0.5, vjust=-0.25) +
+#   ylim(c(0, 100)) +
+#   facet_wrap(`Classifier`~`Smoothing`, labeller = label_both, ncol=5, scales='free_x') +
+#   scale_fill_brewer('Precompute Method', palette='Set2') +
+#   ggtitle('WebKB Dataset') +
+#   xlab('MLE Method (Distribution)') +
+#   ylab('F1 Score') +
+#   theme(
+#     plot.title=element_text(hjust=0.5),
+#     legend.position = 'bottom'
+#   )
+# print(webkb_g)
+# 
+# r8_g = ggplot(mdat[DataSet == 'r8'], 
+#                  aes(x=MLEMethod, y=F1, fill=PrecomputeMethod)) +
+#   geom_bar(stat='identity', position='dodge') +
+#   geom_text(aes(label=round(F1, 1)), size=3.5, position=position_dodge(width=1),
+#             hjust=0.5, vjust=-0.25) +
+#   ylim(c(0, 100)) +
+#   facet_wrap(`Classifier`~`Smoothing`, labeller=label_both, ncol=5, scales='free_x') +
+#   scale_fill_brewer('Precompute Method', palette='Set2') +
+#   ggtitle('R8 Dataset') +
+#   xlab('MLE Method (Distribution)') +
+#   ylab('F1 Score') +
+#   theme(
+#     plot.title=element_text(hjust=0.5),
+#     legend.position='bottom'
+#   )
+# print(r8_g)
+# 
+# cade_g = ggplot(mdat[DataSet == 'cade'], 
+#               aes(x=MLEMethod, y=F1, fill=PrecomputeMethod)) +
+#   geom_bar(stat='identity', position='dodge') +
+#   geom_text(aes(label=round(F1, 1)), size=3.5, position=position_dodge(width=1),
+#             hjust=0.5, vjust=-0.25) +
+#   ylim(c(0, 100)) +
+#   facet_wrap(`Classifier`~`Smoothing`, labeller=label_both, ncol=5, scales='free_x') +
+#   scale_fill_brewer('Precompute Method', palette='Set2') +
+#   ggtitle('CADE12 Dataset') +
+#   xlab('MLE Method (Distribution)') +
+#   ylab('F1 Score') +
+#   theme(
+#     plot.title=element_text(hjust=0.5),
+#     legend.position='bottom'
+#   )
+# print(cade_g)
+# 
+# ng_g = ggplot(mdat[DataSet == '20ng'], 
+#                 aes(x=MLEMethod, y=F1, fill=PrecomputeMethod)) +
+#   geom_bar(stat='identity', position='dodge') +
+#   geom_text(aes(label=round(F1, 1)), size=3.5, position=position_dodge(width=1),
+#             hjust=0.5, vjust=-0.25) +
+#   ylim(c(0, 100)) +
+#   facet_wrap(`Classifier`~`Smoothing`, labeller=label_both, ncol=5, scales='free_x') +
+#   scale_fill_brewer('Precompute Method', palette='Set2') +
+#   ggtitle('20 Newsgroups Dataset') +
+#   xlab('MLE Method (Distribution)') +
+#   ylab('F1 Score') +
+#   theme(
+#     plot.title=element_text(hjust=0.5),
+#     legend.position='bottom'
+#   )
+# print(ng_g)
 

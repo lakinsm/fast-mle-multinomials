@@ -64,6 +64,12 @@ classdat$DataDraws = as.numeric(classdat$DataDraws)
 classdat$DataObs = as.numeric(classdat$DataObs)
 classdat$ParamSD = as.numeric(classdat$ParamSD)
 
+
+# classdat$DataDraws = factor(classdat$DataDraws)
+# classdat$DataObs = factor(classdat$DataObs)
+# classdat$ParamSD = factor(classdat$ParamSD)
+
+
 classdat$DataDraws = factor(classdat$DataDraws,
                             levels=sort(unique(classdat$DataDraws)),
                             ordered=T)
