@@ -150,8 +150,8 @@ class MLEngine(object):
                 with open(mle_path, 'rb') as mle_in:
                     mle = pickle.load(mle_in)
             else:
-                params = blm.blm_init_params(X[0])
-                U, vd, vd1 = blm.blm_precalc(X[0])
+                params = dm.dm_init_params(X[0])
+                U, vd = dm.dm_precalc(X[0])
                 start = timeit.default_timer()
                 mle = dm.dm_newton_raphson2(X[0], U, vd, params,
                                               self.precompute_method,
