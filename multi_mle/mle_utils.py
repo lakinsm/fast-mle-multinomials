@@ -167,7 +167,7 @@ class MLEngine(object):
                         len(U),  # dimensionality
                         timing  # time
                     ))
-                with open(mle_path, 'rb') as mle_out:
+                with open(mle_path, 'wb') as mle_out:
                     pickle.dump(mle, mle_out)
 
             class_simplex = None
@@ -229,7 +229,7 @@ class MLEngine(object):
                         len(U),  # dimensionality
                         timing  # time
                     ))
-                with open(mle_path, 'rb') as mle_out:
+                with open(mle_path, 'wb') as mle_out:
                     pickle.dump(mle, mle_out)
 
             class_simplex = None

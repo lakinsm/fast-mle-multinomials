@@ -408,6 +408,7 @@ def blm_newton_raphson2(X, U, vd, vd1, params, precompute,
     current_lprob = -2e20
     delta_lprob = 2e20
     delta_params = 2e20
+    param_escape = False
     step = 0
     while (delta_params > delta_eps_threshold) and (step < max_steps) and (delta_lprob > delta_lprob_threshold):
         concave, eps = blm_check_concavity(X, params)
@@ -432,9 +433,13 @@ def blm_newton_raphson2(X, U, vd, vd1, params, precompute,
         # The following if statement estimates the beta parameter once, then fixes it relative to alpha.  This was added
         # to prevent situations where the beta parameter being free results in overparameterization and simultaneous
         # increases to beta and alpha indefinitely during the MLE process, resulting in poor accuracy.
-        if params[-2] > 10000:
-            r = deltas[-1] / (deltas[-1] + deltas[-2])  # Ratio to preserve
-            params[-1] = (r * params[-2]) / (1 - r)  # calculate new alpha based on delta ratio
+        if not param_escape:
+            rb = params[-2] / (params[-1] + params[-2])
+            if (rb / max(params[:-2])) > 50:
+                param_escape = True
+        if param_escape:
+            ra = deltas[-1] / (deltas[-1] + deltas[-2])  # Ratio to preserve
+            params[-1] = (ra * params[-2]) / (1 - ra)  # calculate new alpha based on delta ratio
             deltas[-1] = 0  # no need to change alpha now
             deltas[-2] = 0  # fix beta param
             delta_params = np.sum(np.abs(deltas[:-2]))
