@@ -469,7 +469,7 @@ def blm_newton_raphson2(X, U, vd, vd1, params, precompute,
             U0, vd0 = dm.dm_precalc(X)
         dm_params = dm.dm_newton_raphson2(X, U0, vd0, params0, precompute, max_steps, delta_eps_threshold,
                                           delta_lprob_threshold, label, verbose)
-        params = np.concatenate(dm_params, np.sum(dm_params[:-1]))  # Force DM into BLM with equivalent parameters
+        params = np.append(dm_params, np.sum(dm_params[:-1]))  # Force DM into BLM with equivalent parameters
     else:
         print('BLM MLE Exiting: {}, Total steps: {} / {}\n'.format(
             label,
