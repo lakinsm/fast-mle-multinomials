@@ -149,7 +149,7 @@ if __name__ == '__main__':
     print('Dataset names: {}'.format(datasets))
 
     for d in datasets:
-        for distribution in ('DM', 'BLM'):
+        for distribution in ['BLM']:
             if distribution == 'BLM' or distribution == 'DM':
                 for post_method in (None, 'empirical', 'aposteriori'):
                     test_accuracy(distribution, train_dir_path, test_dir_path, d, result_file_path,
