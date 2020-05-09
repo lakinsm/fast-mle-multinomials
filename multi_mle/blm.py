@@ -437,8 +437,12 @@ def blm_newton_raphson2(X, U, vd, vd1, params, precompute,
             params[-1] = (r * params[-2]) / (1 - r)  # calculate new alpha based on delta ratio
             deltas[-1] = 0  # no need to change alpha now
             deltas[-2] = 0  # fix beta param
+            delta_params = np.sum(np.abs(deltas[:-2]))
+        else:
+            delta_params = np.sum(np.abs(deltas[:-2])) + (
+                    deltas[-2] / (deltas[-2] + deltas[-1]))  # See supplement on BLM
+
         params -= deltas
-        delta_params = np.sum(np.abs(deltas[:-2])) + (deltas[-2] / (deltas[-2] + deltas[-1]))  # See supplement on BLM
         if verbose:
             print('{}\t Step: {}, Lprob: {}\tDelta Lprob: {}'.format(
                 label,
