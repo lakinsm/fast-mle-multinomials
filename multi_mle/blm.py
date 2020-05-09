@@ -1,6 +1,7 @@
 import numpy as np
 import sys
 import multi_mle.mle_utils as mutils
+import multi_mle.dm as dm
 
 
 def blm_precalc(X):
@@ -407,6 +408,7 @@ def blm_check_concavity(X, theta):
 
 def blm_newton_raphson2(X, U, vd, vd1, params, precompute,
                         max_steps, delta_eps_threshold, delta_lprob_threshold, label, verbose=False):
+    params0 = np.copy(params)
     current_lprob = -2e20
     delta_lprob = 2e20
     delta_params = 2e20
@@ -434,23 +436,16 @@ def blm_newton_raphson2(X, U, vd, vd1, params, precompute,
 
         # The following if statement estimates the beta parameter once, then fixes it relative to alpha.  This was added
         # to prevent situations where the beta parameter being free results in overparameterization and simultaneous
-        # increases to beta and alpha indefinitely during the MLE process, resulting in poor accuracy.
-        # if not param_escape:
-        #     rb = params[-2] / (params[-1] + params[-2])
-        #     if rb > 0.1:
-        #         param_escape = True
-        #     elif (rb / max(params[:-2] / sum(params[:-2]))) > 10:
-        #         param_escape = True
-        # if param_escape:
-        #     ra = deltas[-1] / (deltas[-1] + deltas[-2])  # Ratio to preserve
-        #     params[-1] = (ra * params[-2]) / (1 - ra)  # calculate new alpha based on delta ratio
-        #     deltas[-1] = 0  # no need to change alpha now
-        #     deltas[-2] = 0  # fix beta param
-        #     delta_params = np.sum(np.abs(deltas[:-2]))
-        # else:
-        #     delta_params = np.sum(np.abs(deltas[:-2])) + (
-        #             deltas[-2] / (deltas[-2] + deltas[-1]))  # See supplement on BLM
-        delta_params = np.sum(np.abs(deltas[:-2]) / np.sum(np.abs(deltas[:-2]))) + (deltas[-2] / (deltas[-2] + deltas[-1]))  # See supplement on BLM
+        # increases to beta and alpha indefinitely during the MLE process, resulting in poor accuracy.  If this
+        # happens, it seems to happen quickly, so we can just switch back to DM optimization here.
+        if not param_escape:
+            beta_alpha_ratio = params[-2] / params[-1]
+            if rb > 0.5:
+                param_escape = True
+        if param_escape:
+            break
+        delta_params = np.sum(np.abs(deltas[:-2])) + (
+                deltas[-2] / (deltas[-2] + deltas[-1]))  # See supplement on BLM
         params -= deltas
         if verbose:
             print('{}\t Step: {}, Lprob: {}\tDelta Lprob: {}'.format(
@@ -467,11 +462,18 @@ def blm_newton_raphson2(X, U, vd, vd1, params, precompute,
             # raise ValueError('Negative parameters detected, exiting: {}'.format(
             #     params[params < 0]
             # ))
-    print('BLM MLE Exiting: {}, Total steps: {} / {}\n'.format(
-        label,
-        step,
-        max_steps
-    ))
+    if param_escape:
+        print('BLM Escape Detected! Switching to DM Distribution for class: {}'.format(label))
+        U, vd = dm.dm_precalc(X)
+        dm_params = dm.dm_newton_raphson2(X, U, vd, params0, precompute, max_steps, delta_eps_threshold,
+                                          delta_lprob_threshold, label, verbose)
+        params = np.concatenate(dm_params, np.sum(dm_params[:-1]))  # Force DM into BLM with equivalent parameters
+    else:
+        print('BLM MLE Exiting: {}, Total steps: {} / {}\n'.format(
+            label,
+            step,
+            max_steps
+        ))
     return params
 
 
