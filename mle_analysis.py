@@ -10,7 +10,7 @@ import multi_mle.smoothing as sm
 np.random.seed(2718)
 
 # MLE/NB params
-delta_eps_threshold = 1e-5
+delta_eps_threshold = 1e-26
 learn_rate_threshold = 2e-10
 delta_lprob_threshold = 1e-5
 max_steps = 20
@@ -159,10 +159,10 @@ if __name__ == '__main__':
                                   timing_result_file_path,
                                   temp_dir_path, precompute='approximate', posterior_method=post_method,
                                   threads=n_threads)
-                    test_accuracy(distribution, train_dir_path, test_dir_path, d, result_file_path,
-                                  timing_result_file_path,
-                                  temp_dir_path, precompute='sklar', posterior_method=post_method,
-                                  threads=n_threads)
+                    # test_accuracy(distribution, train_dir_path, test_dir_path, d, result_file_path,
+                    #               timing_result_file_path,
+                    #               temp_dir_path, precompute='sklar', posterior_method=post_method,
+                    #               threads=n_threads)
             elif distribution == 'pooledDM':
                 test_accuracy(distribution, train_dir_path, test_dir_path, d, result_file_path, timing_result_file_path,
                               temp_dir_path, threads=n_threads)
