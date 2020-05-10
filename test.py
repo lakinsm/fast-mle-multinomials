@@ -10,14 +10,14 @@ import multi_mle.smoothing as sm
 np.random.seed(2718)
 
 # MLE/NB params
-delta_eps_threshold = 1e-5
+delta_eps_threshold = 1e-26
 learn_rate_threshold = 2e-10
 delta_lprob_threshold = 1e-5
 max_steps = 100
 batch_size = 1000
 
 # Smoothing params
-smoothing_methods = tuple('lidstone')
+smoothing_methods = ['lidstone']
 dirichlet_grid = np.arange(0.1, 1, 0.1)
 jm_grid = np.arange(0.1, 1, 0.1)
 ad_grid = np.array([0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1, 0.2])
