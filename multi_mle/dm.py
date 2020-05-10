@@ -45,12 +45,21 @@ def dm_init_params(X):
     D = X.shape[1]
     rowsums = X.sum(axis=1)
     Xnorm = (X / rowsums.reshape(-1, 1).astype(float))
+    min_prop_vec = np.array([np.min(Xnorm[Xnorm > 0]) for _ in range(D)])
     mean = np.array(np.mean(Xnorm, axis=0))
     m2 = np.array(np.mean(np.power(Xnorm, 2), axis=0))
-    nonzeros = np.array(mean > 0)
-    sum_alpha = np.divide((mean[nonzeros] - m2[nonzeros]), (m2[nonzeros] - (np.power(mean[nonzeros], 2))))
-    sum_alpha[sum_alpha == 0] = 1  # required to prevent division by zero
+    denominator = m2 - (np.power(mean, 2))
+
+    # The below conditionals are where the method of moments estimation will not work, so we take all parameters
+    # to be equal to the lowest proportion, as stated in Ronning 1989.
+    if any(x == 0 for x in denominator):
+        return min_prop_vec
+    sum_alpha = np.divide(mean - m2, denominator)
+    if any(x == 0 for x in 1 + sum_alpha):
+        return min_prop_vec
     var_pk = np.divide(np.multiply(mean, 1 - mean), 1 + sum_alpha)
+    if any(x == 0 for x in var_pk):
+        return min_prop_vec
     alpha = np.abs(np.divide(np.multiply(mean, 1 - mean), var_pk) - 1)
     log_sum_alpha = ((D - 1) ** -1) * np.sum(np.log(alpha))
     s = np.exp(log_sum_alpha)
