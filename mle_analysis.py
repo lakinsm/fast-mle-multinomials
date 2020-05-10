@@ -11,9 +11,8 @@ np.random.seed(2718)
 
 # MLE/NB params
 delta_eps_threshold = 1e-26
-learn_rate_threshold = 2e-10
 delta_lprob_threshold = 1e-5
-max_steps = 20
+max_steps = 200
 batch_size = 1000
 
 # Smoothing params

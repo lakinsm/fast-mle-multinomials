@@ -11,8 +11,7 @@ import multi_mle.blm as blm
 
 random.seed(2718)
 
-delta_eps_threshold = 1e-5
-learn_rate_threshold = 2e-10
+delta_eps_threshold = 1e-26
 delta_lprob_threshold = 1e-5
 max_steps = 20
 repeat_timings = 5

@@ -12,14 +12,10 @@ import glob
 np.random.seed(2718)
 
 # MLE/NB params
-delta_eps_threshold = 1e-5
-learn_rate_threshold = 2e-10
+delta_eps_threshold = 1e-26
 delta_lprob_threshold = 1e-5
-max_steps = 20
+max_steps = 200
 batch_size = 1000
-
-# Parallel params
-N_JOB_THREADS = 4
 
 # Algo params
 DISTRIBUTIONS = ('pooledDM', 'DM', 'BLM')
@@ -141,7 +137,7 @@ def process(q, lock, temp_dir):
 			print('Processing job: {}'.format(job[2]['name']))
 		for distribution in DISTRIBUTIONS:
 			if distribution == 'BLM' or distribution == 'DM':
-				for post_method in (None, 'empirical', 'aposteriori'):
+				for post_method in (None, 'aposteriori'):
 					power_analysis(job[0], job[1], job[2], temp_dir, distribution, posterior_method=post_method)
 			elif distribution == 'pooledDM':
 				power_analysis(job[0], job[1], job[2], temp_dir, distribution)
