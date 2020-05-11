@@ -19,7 +19,7 @@ batch_size = 1000
 smoothing_methods = ('lidstone', 'dirichlet', 'jm', 'ad', 'ts')
 dirichlet_grid = np.arange(0.1, 1, 0.1)
 jm_grid = np.arange(0.1, 1, 0.1)
-ad_grid = np.array([0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1, 0.2])
+ad_grid = np.array([0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1])
 ts_grid = (np.arange(0.1, 1, 0.1), np.arange(0.1, 1, 0.1))
 
 
