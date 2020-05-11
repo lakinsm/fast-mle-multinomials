@@ -450,7 +450,7 @@ def blm_newton_raphson2(X, U, vd, vd1, params, precompute,
         # to prevent situations where the beta parameter being free results in overparameterization and simultaneous
         # increases to beta and alpha indefinitely during the MLE process, resulting in poor accuracy.  If this
         # happens, it seems to happen quickly, so we can just switch back to DM optimization here.
-        if not param_escape:
+        if not param_escape and step > 3:
             beta_alpha_ratio = params[-2] / params[-1]
             beta_normalized_ratio = params[-2] / (params[-1] + params[-2])
             if beta_alpha_ratio > 0.3:
