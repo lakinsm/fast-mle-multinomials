@@ -469,8 +469,8 @@ def blm_newton_raphson2(X, U, vd, vd1, params, precompute,
             print('\tDelta Sum Eps: {}'.format(delta_params))
             print('\tParams: {}'.format(params))
             print('\tDeltas: {}'.format(deltas))
-        if np.any(params < 0):
-            params[params < 0] = 1e-20
+        if np.any(params <= 0):
+            params[params <= 0] = 1e-20
             # raise ValueError('Negative parameters detected, exiting: {}'.format(
             #     params[params < 0]
             # ))
