@@ -11,13 +11,12 @@ np.random.seed(2718)
 
 # MLE/NB params
 delta_eps_threshold = 1e-26
-learn_rate_threshold = 2e-10
 delta_lprob_threshold = 1e-5
 max_steps = 200
 batch_size = 1000
 
 # Smoothing params
-smoothing_methods = ['lidstone']
+smoothing_methods = ('lidstone', 'dirichlet', 'jm', 'ad', 'ts')
 dirichlet_grid = np.arange(0.1, 1, 0.1)
 jm_grid = np.arange(0.1, 1, 0.1)
 ad_grid = np.array([0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1, 0.2])
@@ -67,6 +66,18 @@ def test_accuracy(distribution, train_path, test_path, dataset_name, result_file
             pool.join()
 
         mle_results = engine.load_mle_results(outputs)
+        timings = engine.load_timing_results(distribution)
+        with open(timing_file, 'a') as time_out:
+            for vals in timings:
+                time_out.write('{},{},{},{},{},{},{}\n'.format(
+                    dataset_name,
+                    distribution,
+                    precompute,
+                    vals[0],  # class label
+                    vals[1],  # number of observations
+                    vals[2],  # dimensionality
+                    vals[3]  # time
+                ))
 
         assert(len(mle_results) == len(class_labels))
         if distribution == 'BLM' and posterior_method == 'aposteriori':
@@ -138,7 +149,7 @@ if __name__ == '__main__':
     for d in datasets:
         for distribution in ['BLM']:
             if distribution == 'BLM' or distribution == 'DM':
-                for post_method in (None, 'empirical', 'aposteriori'):
+                for post_method in (None, 'aposteriori'):
                     test_accuracy(distribution, train_dir_path, test_dir_path, d, result_file_path,
                                   timing_result_file_path,
                                   temp_dir_path, precompute='vectorized', posterior_method=post_method,
