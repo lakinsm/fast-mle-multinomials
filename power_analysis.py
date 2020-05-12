@@ -7,6 +7,7 @@ import multi_mle.mle_utils as mutils
 import multiprocessing as mp
 import multi_mle.blm as blm
 import multi_mle.dm as dm
+import multi_mle.smoothing as sm
 import glob
 
 np.random.seed(2718)
