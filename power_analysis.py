@@ -123,9 +123,16 @@ def power_analysis(train_data, test_data, metadata, temp_dir, distribution, post
 	)
 	param_string = 'n=1'
 	method = 'lidstone'
-	mutils.output_results_naive_bayes(simplex_matrix, test_data, class_labels, key_idxs, value_idxs,
-	                                  metadata['name'], distribution, method, param_string, 'vectorized',
-	                                  classification_result_file, posterior_method, batch_size)
+
+	if posterior_method == 'aposteriori':
+		mutils.output_results_naive_bayes(simplex_matrix, test_data, class_labels, key_idxs, value_idxs,
+		                                  metadata['name'], distribution, method, param_string, 'vectorized',
+		                                  classification_result_file, posterior_method, batch_size)
+	else:
+		S = sm.lidstone_smoothing(simplex_matrix, X, class_labels)
+		mutils.output_results_naive_bayes(S, test_data, class_labels, key_idxs, value_idxs,
+		                                  metadata['name'], distribution, method, param_string, 'vectorized',
+		                                  classification_result_file, posterior_method, batch_size)
 
 
 def process(q, lock, temp_dir):

@@ -31,16 +31,17 @@ custom_theme_legend = function(base_size=11, base_family='sans')
     )
 }
 
-classdat = data.table(read.csv(paste('C:/Users/lakin/PycharmProjects/fast-mle-multinomials/analytic_data/',
-                                     'simulations/power_analysis_classification_results.csv', sep=''), header=F))
-powerdat = data.table(read.csv(paste('C:/Users/lakin/PycharmProjects/fast-mle-multinomials/analytic_data/',
-                                      'simulations/power_analysis_mle_results.csv', sep=''), header=F))
+classdat = data.table(read.csv(paste('C:/Users/lakin/Documents/1AbdoBioinformatics/Publications/MLE/Simulations',
+                                     '/SimulatedClassification/analytic_data/power_analysis_classification_results.csv', sep=''), 
+                               header=F))
+# powerdat = data.table(read.csv(paste('C:/Users/lakin/PycharmProjects/fast-mle-multinomials/analytic_data/',
+#                                       'simulations/power_analysis_mle_results.csv', sep=''), header=F))
 
 if(colnames(classdat)[1] == 'V1') {
   colnames(classdat) = c('Dataset', 'PosteriorMethod', 'Distribution', 'SmoothingMethod',
                          'PrecomputeMethod', 'ParamString', 'ClassLabel', 'TruePositives',
                          'FalsePositives', 'FalseNegatives', 'TrueNegatives')
-  colnames(powerdat)[1:4] = c('Dataset', 'Distribution', 'ParamOrigin', 'ParamType')
+  # colnames(powerdat)[1:4] = c('Dataset', 'Distribution', 'ParamOrigin', 'ParamType')
 }
 
 classdat[, SensitivityRecall := (100*TruePositives / (TruePositives + FalseNegatives))]
@@ -63,12 +64,6 @@ classdat[, c('PrecomputeMethod', 'SmoothingMethod', 'ParamString',
 classdat$DataDraws = as.numeric(classdat$DataDraws)
 classdat$DataObs = as.numeric(classdat$DataObs)
 classdat$ParamSD = as.numeric(classdat$ParamSD)
-
-
-# classdat$DataDraws = factor(classdat$DataDraws)
-# classdat$DataObs = factor(classdat$DataObs)
-# classdat$ParamSD = factor(classdat$ParamSD)
-
 
 classdat$DataDraws = factor(classdat$DataDraws,
                             levels=sort(unique(classdat$DataDraws)),
@@ -192,27 +187,6 @@ print(g1)
 dev.off()
 
 
-######### DM Empirical NB, Multinomial Data, Balanced #########
-edm_balanced_multidat = dm[DataType == 'multinom' & PosteriorMethod == 'empirical']
-
-g1 = ggplot(edm_balanced_multidat, aes(x=ParamSD, y=F1, color=ClassLabel)) +
-  geom_boxplot(position='dodge') +
-  facet_wrap(`Data Observations`~`Data Draws`, labeller = label_both) +
-  xlab('Parameter Standard Deviation') +
-  ylab('F1 Score') +
-  custom_theme_legend(
-    base_size = 23
-  ) %+replace%
-  theme(
-    legend.position = 'bottom'
-  )
-png(filename=paste0(plotdir, 'S_Figure5_DMENB_MultinomialData.png'),
-    width=2000, height=2000)
-print(g1)
-dev.off()
-
-
-
 ######### DM a posteriori NB, Multinomial Data, Balanced #########
 adm_balanced_multidat = dm[DataType == 'multinom' & PosteriorMethod == 'aposteriori']
 
@@ -227,28 +201,7 @@ g1 = ggplot(adm_balanced_multidat, aes(x=ParamSD, y=F1, color=ClassLabel)) +
   theme(
     legend.position = 'bottom'
   )
-png(filename=paste0(plotdir, 'S_Figure6_DMANB_MultinomialData.png'),
-    width=2000, height=2000)
-print(g1)
-dev.off()
-
-
-######### BLM NB, Multinomial Data, Balanced #########
-eblm_balanced_multidat = blm[DataType == 'multinom' & PosteriorMethod == 'empirical']
-
-g1 = ggplot(eblm_balanced_multidat, aes(x=ParamSD, y=F1, color=ClassLabel)) +
-  geom_boxplot(position='dodge') +
-  facet_wrap(`Data Observations`~`Data Draws`, labeller = label_both) +
-  scale_color_brewer('Parameter Draws', palette='Set2') +
-  xlab('Parameter Standard Deviation') +
-  ylab('F1 Score') +
-  custom_theme_legend(
-    base_size = 23
-  ) %+replace%
-  theme(
-    legend.position = 'bottom'
-  )
-png(filename=paste0(plotdir, 'S_Figure7_BLMENB_MultinomialData.png'),
+png(filename=paste0(plotdir, 'S_Figure5_DMANB_MultinomialData.png'),
     width=2000, height=2000)
 print(g1)
 dev.off()
@@ -269,7 +222,7 @@ g1 = ggplot(ablm_balanced_multidat, aes(x=ParamSD, y=F1, color=ClassLabel)) +
   theme(
     legend.position = 'bottom'
   )
-png(filename=paste0(plotdir, 'S_Figure8_BLMANB_MultinomialData.png'),
+png(filename=paste0(plotdir, 'S_Figure6_BLMANB_MultinomialData.png'),
     width=2000, height=2000)
 print(g1)
 dev.off()

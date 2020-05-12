@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
+
 import numpy as np
 import sys
-import glob
+import os
 import multi_mle.mle_utils as mutils
 import multiprocessing as mp
+import multi_mle.blm as blm
+import multi_mle.dm as dm
 import multi_mle.smoothing as sm
-
+import glob
 
 np.random.seed(2718)
 
@@ -15,156 +18,183 @@ delta_lprob_threshold = 1e-5
 max_steps = 200
 batch_size = 1000
 
-# Smoothing params
-smoothing_methods = ('lidstone', 'dirichlet', 'jm', 'ad', 'ts')
-dirichlet_grid = np.arange(0.1, 1, 0.1)
-jm_grid = np.arange(0.1, 1, 0.1)
-ad_grid = np.array([0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1, 0.2])
-ts_grid = (np.arange(0.1, 1, 0.1), np.arange(0.1, 1, 0.1))
+# Algo params
+DISTRIBUTIONS = ('pooledDM', 'DM', 'BLM')
 
 
-def test_accuracy(distribution, train_path, test_path, dataset_name, result_file, timing_file, temp_dir,
-                  precompute=None, posterior_method=None, threads=4):
-    simplex_matrix, test, X, class_labels, smoothed, key_idxs, value_idxs = (None,) * 7
+def power_analysis(train_data, test_data, metadata, temp_dir, distribution, posterior_method=None):
+	if distribution == 'pooledDM':
+		X, class_labels, key_idxs, value_idxs = mutils.tokenize_train(train_data, test_data)
 
-    if distribution == 'pooledDM':
-        train = mutils.load_data(train_path)
-        test = mutils.load_data(test_path)
-        X, class_labels, key_idxs, value_idxs = mutils.tokenize_train(train[dataset_name], test[dataset_name])
+		simplex_matrix = np.zeros((len(value_idxs), len(class_labels)), dtype=np.float64)
+		for i, c in enumerate(class_labels):
+			class_simplex = np.squeeze(np.sum(X[c][0], axis=0))
+			class_simplex = class_simplex / np.sum(class_simplex)
+			# X[c][1] stores a dictionary/map of non-zero feature idx to the corresponding feature idx
+			# with zero-sum columns included.  The simplex_matrix below is dim (features, classes), while
+			# the count matrix exists for each class, dim (observations, features).
+			for j, p in enumerate(class_simplex):
+				simplex_matrix[X[c][1][j], i] = p
+	else:
+		engine = mutils.MLEngine(max_steps, delta_eps_threshold, delta_lprob_threshold, temp_dir, metadata['name'],
+		                         precompute_method='vectorized', posterior_method=posterior_method, verbose=False)
+		X, class_labels, key_idxs, value_idxs = mutils.tokenize_train(train_data, test_data)
 
-        simplex_matrix = np.zeros((len(value_idxs), len(class_labels)), dtype=np.float64)
-        for i, c in enumerate(class_labels):
-            class_simplex = np.squeeze(np.sum(X[c][0], axis=0))
-            class_simplex = class_simplex / np.sum(class_simplex)
-            # X[c][1] stores a dictionary/map of non-zero feature idx to the corresponding feature idx
-            # with zero-sum columns included.  The simplex_matrix below is dim (features, classes), while
-            # the count matrix exists for each class, dim (observations, features).
-            for j, p in enumerate(class_simplex):
-                simplex_matrix[X[c][1][j], i] = p
-    else:
-        engine = mutils.MLEngine(max_steps, delta_eps_threshold, delta_lprob_threshold, temp_dir, dataset_name,
-                                 precompute_method=precompute, posterior_method=posterior_method, verbose=True)
-        if engine.count_files_exist:
-            X, class_labels, key_idxs, value_idxs = engine.load_count_files()
-        else:
-            train = mutils.load_data(train_path)
-            test = mutils.load_data(test_path)
-            X, class_labels, key_idxs, value_idxs = mutils.tokenize_train(train[dataset_name], test[dataset_name])
-            engine.write_count_files((X, class_labels, key_idxs, value_idxs))
+		filepaths = engine.multi_pickle_dump((X[c], c) for c in class_labels)
 
-        filepaths = engine.multi_pickle_dump((X[c], c) for c in class_labels)
-        pool = mp.Pool(np.min((threads, len(class_labels))))
-        try:
-            if distribution == 'DM':
-                outputs = pool.map(engine.dm_mle_parallel, filepaths)
-            elif distribution == 'BLM':
-                outputs = pool.map(engine.blm_mle_parallel, filepaths)
-            else:
-                raise ValueError('Distribution must be one of [pooledDM, DM, BLM]. Provided: {}'.format(distribution))
-        finally:
-            pool.close()
-            pool.join()
+		# Serial execution of MLE, since we're already in children processes via dataset, and Python doesn't allow
+		# child threads to spawn additional threads
+		outputs = []
+		if distribution == 'DM':
+			for f in filepaths:
+				outputs.append(engine.dm_mle_parallel(f))
+		elif distribution == 'BLM':
+			for f in filepaths:
+				outputs.append(engine.blm_mle_parallel(f))
+		else:
+			raise ValueError('Distribution must be one of [pooledDM, DM, BLM]. Provided: {}'.format(distribution))
 
-        mle_results = engine.load_mle_results(outputs)
-        timings = engine.load_timing_results(distribution)
-        with open(timing_file, 'a') as time_out:
-            for vals in timings:
-                time_out.write('{},{},{},{},{},{},{}\n'.format(
-                    dataset_name,
-                    distribution,
-                    precompute,
-                    vals[0],  # class label
-                    vals[1],  # number of observations
-                    vals[2],  # dimensionality
-                    vals[3]  # time
-                ))
+		mle_results = engine.load_mle_results(outputs)
 
-        assert(len(mle_results) == len(class_labels))
-        if distribution == 'BLM' and posterior_method == 'aposteriori':
-            simplex_matrix = np.zeros((len(value_idxs) + 1, len(class_labels)), dtype=np.float64)
-        else:
-            simplex_matrix = np.zeros((len(value_idxs), len(class_labels)), dtype=np.float64)
-        for label, simplex in mle_results:
-            simplex_matrix[:, key_idxs[label]] = simplex
+		assert (len(mle_results) == len(class_labels))
+		if distribution == 'BLM' and posterior_method == 'aposteriori':
+			simplex_matrix = np.zeros((len(value_idxs) + 1, len(class_labels)), dtype=np.float64)
+		else:
+			simplex_matrix = np.zeros((len(value_idxs), len(class_labels)), dtype=np.float64)
+		for label, simplex in mle_results:
+			simplex_matrix[:, key_idxs[label]] = simplex
 
-    if not test:
-        test = mutils.load_data(test_path)
+	if posterior_method == 'aposteriori':
+		param_result_file = '{}/parts/{}_{}_{}.param_part'.format(
+			temp_dir,
+			metadata['name'],
+			distribution.lower(),
+			posterior_method
+		)
+		rev_val_idx = {v: k for k, v in value_idxs.items()}
+		with open(param_result_file, 'w') as param_out:
+			for c in class_labels:
+				original_params = np.squeeze(np.array(metadata[c], dtype=np.float64))
+				post_mle_params = np.squeeze(np.zeros((1, simplex_matrix.shape[0]), dtype=np.float64))
+				for i in range(simplex_matrix.shape[0]):
+					try:
+						original_idx = int(rev_val_idx[i]) - 1
+						post_mle_params[original_idx] = simplex_matrix[i, key_idxs[c]]
+					except KeyError:  # this should only be true for the last BLM parameter
+						original_idx = i
+						post_mle_params[original_idx] = simplex_matrix[i, key_idxs[c]]
+			param_out.write('{},{},generating,parameter,{}\n'.format(
+				metadata['name'],
+				distribution,
+				','.join(str(x) for x in original_params)
+			))
+			param_out.write('{},{},mle,parameter,{}\n'.format(
+				metadata['name'],
+				distribution,
+				','.join(str(x) for x in post_mle_params)
+			))
+			if distribution == 'DM':
+				param_out.write('{},{},generating,simplex,{}\n'.format(
+					metadata['name'],
+					distribution,
+					','.join(str(x) for x in dm.dm_renormalize(original_params))
+				))
+				param_out.write('{},{},mle,simplex,{}\n'.format(
+					metadata['name'],
+					distribution,
+					','.join(str(x) for x in dm.dm_renormalize(post_mle_params))
+				))
+			elif distribution == 'BLM':
+				param_out.write('{},{},generating,simplex,{}\n'.format(
+					metadata['name'],
+					distribution,
+					','.join(str(x) for x in blm.blm_renormalize(original_params))
+				))
+				param_out.write('{},{},mle,simplex,{}\n'.format(
+					metadata['name'],
+					distribution,
+					','.join(str(x) for x in blm.blm_renormalize(post_mle_params))
+				))
 
-    if posterior_method == 'aposteriori':
-        param_string = 'n=1'
-        method = 'lidstone'
-        mutils.output_results_naive_bayes(simplex_matrix, test[dataset_name], class_labels, key_idxs, value_idxs,
-                                          dataset_name, distribution, method, param_string, precompute, result_file,
-                                          posterior_method, batch_size)
-    else:
-        for method in smoothing_methods:
-            if method == 'lidstone':
-                smoothed = sm.lidstone_smoothing(simplex_matrix, X, class_labels)
-                param_string = 'n=1'
-                mutils.output_results_naive_bayes(smoothed, test[dataset_name], class_labels, key_idxs, value_idxs,
-                                                  dataset_name, distribution, method, param_string, precompute,
-                                                  result_file, posterior_method, batch_size)
-            elif method == 'dirichlet':
-                for alpha in dirichlet_grid:
-                    smoothed = sm.dirichlet_smoothing(simplex_matrix, X, class_labels, alpha)
-                    param_string = 'alpha={}'.format(alpha)
-                    mutils.output_results_naive_bayes(smoothed, test[dataset_name], class_labels, key_idxs, value_idxs,
-                                                      dataset_name, distribution, method, param_string, precompute,
-                                                      result_file, posterior_method, batch_size)
-            elif method == 'jm':
-                for beta in jm_grid:
-                    smoothed = sm.jelinek_mercer_smoothing(simplex_matrix, X, class_labels, beta)
-                    param_string = 'beta={}'.format(beta)
-                    mutils.output_results_naive_bayes(smoothed, test[dataset_name], class_labels, key_idxs, value_idxs,
-                                                      dataset_name, distribution, method, param_string, precompute,
-                                                      result_file, posterior_method, batch_size)
-            elif method == 'ad':
-                for delta in ad_grid:
-                    smoothed = sm.absolute_discounting_smoothing(simplex_matrix, X, class_labels, delta)
-                    param_string = 'delta={}'.format(delta)
-                    mutils.output_results_naive_bayes(smoothed, test[dataset_name], class_labels, key_idxs, value_idxs,
-                                                      dataset_name, distribution, method, param_string, precompute,
-                                                      result_file, posterior_method, batch_size)
-            elif method == 'ts':
-                for mu in ts_grid[0]:
-                    for beta in ts_grid[1]:
-                        smoothed = sm.two_step_smoothing(simplex_matrix, X, class_labels, mu, beta)
-                        param_string = 'mu={}|beta={}'.format(mu, beta)
-                        mutils.output_results_naive_bayes(smoothed, test[dataset_name], class_labels, key_idxs, value_idxs,
-                                                          dataset_name, distribution, method, param_string, precompute,
-                                                          result_file, posterior_method, batch_size)
+	classification_result_file = '{}/parts/{}_{}_{}.classification_part'.format(
+		temp_dir,
+		metadata['name'],
+		distribution.lower(),
+		posterior_method
+	)
+	param_string = 'n=1'
+	method = 'lidstone'
+
+	if posterior_method == 'aposteriori':
+		mutils.output_results_naive_bayes(simplex_matrix, test_data, class_labels, key_idxs, value_idxs,
+		                                  metadata['name'], distribution, method, param_string, 'vectorized',
+		                                  classification_result_file, posterior_method, batch_size)
+	else:
+		S = sm.lidstone_smoothing(simplex_matrix, X, class_labels)
+		mutils.output_results_naive_bayes(S, test_data, class_labels, key_idxs, value_idxs,
+		                                  metadata['name'], distribution, method, param_string, 'vectorized',
+		                                  classification_result_file, posterior_method, batch_size)
+
+
+def process(q, lock, temp_dir):
+	while True:
+		job = q.get()
+		if not job:
+			break
+		with lock:
+			print('Processing job: {}'.format(job[2]['name']))
+		for distribution in DISTRIBUTIONS:
+			if distribution == 'BLM' or distribution == 'DM':
+				for post_method in (None, 'aposteriori'):
+					power_analysis(job[0], job[1], job[2], temp_dir, distribution, posterior_method=post_method)
+			elif distribution == 'pooledDM':
+				power_analysis(job[0], job[1], job[2], temp_dir, distribution)
+			else:
+				raise ValueError('Distribution must be one of [pooledDM, DM, BLM]. Provided: {}'.format(distribution))
+
+
+def aggregate_partial_results(temp_dir, out_dir):
+	parts_dir = '{}/parts'.format(temp_dir)
+	with open(out_dir + '/power_analysis_classification_results.csv', 'w') as out_class, \
+			open(out_dir + '/power_analysis_mle_results.csv', 'w') as out_mle:
+		for cl_res_file in glob.glob('{}/*.classification_part'.format(parts_dir)):
+			with open(cl_res_file, 'r') as cl_in:
+				data = cl_in.read()
+				for line in data.split('\n'):
+					if not line:
+						continue
+					out_class.write('{}\n'.format(line))
+
+		for mle_res_file in glob.glob('{}/*.param_part'.format(parts_dir)):
+			with open(mle_res_file, 'r') as mle_in:
+				data = mle_in.read()
+				for line in data.split('\n'):
+					if not line:
+						continue
+					out_mle.write('{}\n'.format(line))
 
 
 if __name__ == '__main__':
-    train_dir_path = sys.argv[1]
-    test_dir_path = sys.argv[2]
-    result_file_path = sys.argv[3]
-    timing_result_file_path = sys.argv[4]
-    temp_dir_path = sys.argv[5]
-    n_threads = int(sys.argv[6])
+	train_dir_path = sys.argv[1]
+	test_dir_path = sys.argv[2]
+	temp_dir = sys.argv[3]
+	output_dir = sys.argv[4]
+	n_parallel_jobs = int(sys.argv[5])
 
-    datasets = [x.split('/')[-1].split('-')[0] for x in glob.glob(train_dir_path + '/*')]
-    print('Dataset names: {}'.format(datasets))
+	if not os.path.isdir('{}/parts'.format(temp_dir)):
+		os.mkdir('{}/parts'.format(temp_dir))
 
-    for d in datasets:
-        for distribution in ['BLM']:
-            if distribution == 'BLM' or distribution == 'DM':
-                for post_method in (None, 'aposteriori'):
-                    test_accuracy(distribution, train_dir_path, test_dir_path, d, result_file_path,
-                                  timing_result_file_path,
-                                  temp_dir_path, precompute='vectorized', posterior_method=post_method,
-                                  threads=n_threads)
-                    # test_accuracy(distribution, train_dir_path, test_dir_path, d, result_file_path,
-                    #               timing_result_file_path,
-                    #               temp_dir_path, precompute='approximate', posterior_method=post_method,
-                    #               threads=n_threads)
-                    # test_accuracy(distribution, train_dir_path, test_dir_path, d, result_file_path,
-                    #               timing_result_file_path,
-                    #               temp_dir_path, precompute='sklar', posterior_method=post_method,
-                    #               threads=n_threads)
-            elif distribution == 'pooledDM':
-                test_accuracy(distribution, train_dir_path, test_dir_path, d, result_file_path, timing_result_file_path,
-                              temp_dir_path, threads=n_threads)
-            else:
-                raise ValueError('Distribution must be one of [pooledDM, DM, BLM]. Provided: {}'.format(distribution))
+	q = mp.Queue(maxsize=n_parallel_jobs)
+	lock = mp.Lock()
+	pool = mp.Pool(n_parallel_jobs, initializer=process, initargs=(q, lock, temp_dir))
 
+	for dataset in mutils.load_dataset_generator(train_dir_path, test_dir_path, metadata=True):
+		q.put(dataset)
+
+	for _ in range(n_parallel_jobs):
+		q.put(None)
+
+	pool.close()
+	pool.join()
+
+	aggregate_partial_results(temp_dir, output_dir)
