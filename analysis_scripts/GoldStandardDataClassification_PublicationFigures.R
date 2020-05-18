@@ -39,7 +39,7 @@ extract_highest_f1 = function(X)
 }
 
 
-dat = data.table(read.csv('2020Apr15_mle_results.csv', header=F))
+dat = data.table(read.csv('2020May11_mle_results.csv', header=F))
 colnames(dat) = c('DataSet', 'PosteriorMethod', 'MLEMethod', 'SmoothingMethod', 'PrecomputeMethod', 'ParamString',
                   'Class', 'TruePositives', 'FalsePositives', 'FalseNegatives',
                   'TrueNegatives')
@@ -164,7 +164,7 @@ g1 = ggplot(mdat, aes(x=MLEMethod, y=F1, fill=PrecomputeMethod)) +
   geom_text(aes(label=round(F1, 1)), size=6.5, position=position_dodge(width=0.9),
             hjust=0.5, vjust=-0.25) +
   ylim(c(0, 100)) +
-  facet_wrap(DataSet~Classifier, labeller = label_both, ncol=3, scales='free_x') +
+  facet_wrap(DataSet~Classifier, labeller = label_both, ncol=2, scales='free_x') +
   scale_fill_brewer('Precompute Method', palette='Set2') +
   # ggtitle('Gold Standard Data Classification Performance') +
   xlab('MLE Method (Distribution)') +
