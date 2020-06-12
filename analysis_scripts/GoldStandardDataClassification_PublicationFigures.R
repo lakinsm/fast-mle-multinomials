@@ -3,7 +3,8 @@ library(ggplot2)
 library(gridExtra)
 
 
-setwd('C:/Users/lakin/PycharmProjects/fast-mle-multinomials/analytic_data/')
+# setwd('C:/Users/lakin/PycharmProjects/fast-mle-multinomials/analytic_data/')
+setwd('/mnt/phd_repositories/fast-mle-multinomials/analytic_data/')
 
 custom_theme_nolegend = function (base_size = 11, base_family = 'sans', base_line_size = base_size/22, 
                                   base_rect_size = base_size/22) 
@@ -94,8 +95,7 @@ subdat$F1[is.nan(subdat$F1)] = 0
 
 plot_subdat = subdat[, .SD, .SDcols=!c('TruePositives', 'FalsePositives',
                                        'FalseNegatives', 'TrueNegatives',
-                                       'Specificity', 'NPV', 'Accuracy',
-                                       'PPVPrecision', 'SensitivityRecall')]
+                                       'Specificity', 'NPV')]
 
 plot_subdat2 = plot_subdat[, extract_highest_f1(.SD), by=c('DataSet', 'MLEMethod',
                                                            'SmoothingMethod', 'PosteriorMethod',
